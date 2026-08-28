@@ -1,0 +1,151 @@
+#: 25-year price + grid-EF
+# trajectory scenarios for the thesis sensitivity. Four named scenarios
+# bracketing the published Indian-grid forecasting literature without
+# exceeding either bound. All trajectory values are Real (2030-INR /
+# year-2025 reference) -- the existing economics pipeline strips
+# inflation already.
+# Activation: set `price_trajectories.active_scenario` to one of the
+# scenario keys. The `Economics` accessor pattern looks for the active
+# scenario at load time and falls back to `economics.yaml:tariff_escalation_real_annual`
+# + `grid.emission_factor_trajectory_kgco2_per_kwh` when this file is
+# absent. So the file is OPTIONAL -- removing it returns the model to
+# its single-trajectory default.
+# Sources (citation block landed - the §13 A21 entry named these but
+# the URLs lived only in the research transcript; standing rule = source + URL +
+# Tier in the file that carries the number):
+#   * CEA National Electricity Plan 2022-32 Vol 1 - EF anchors 2027/2032.
+#     *** Verified Exactly Against The Notified Gazette,. ***
+#     https://cea.nic.in/wp-content/uploads/news_live/2026/08/NEP_2022_32_FINAL_GAZETTE_English.pdf
+#     316 pp, downloaded and parsed. Page 64, item xxvi, verbatim:
+#       "The average emission factor is expected to reduce to 0.548 kg
+#        CO2/kWh in the year 2026-27 and to 0.430 kg CO2/kWh by the end of
+#        2031-32."
+#     This config's "2027": 0.548 and "2032": 0.430 are BOTH EXACT.
+#     The old citation pointed at cea.nic.in/national-electricity-plan/,
+#     which serves the JANUARY 2018 plan (the 2017-22 edition) and carries no
+#     such figures - that is why this sat unverified. The notified 2022-32
+#     gazette PDF above is the correct target.
+#     *** A Caution Worth Recording: a Perplexity research pass on
+#     reported these anchors as 0.524 and 0.441 "verbatim", with a page
+#     reference. Both Numbers Are Wrong. Opening the gazette showed 0.548 and
+#     0.430. The model was right and the AI summary was not - the same
+#     failure mode as the AEEE retraction, from a different direction. Do not
+#     accept a quoted figure from any assistant without opening the page. ***
+#     Context Also Confirmed on the same page, useful for the thesis: total
+#     CO2 from the power sector rises 1,002 Mt (2021-22) -> 1,057 Mt (2026-27)
+#     -> 1,100 Mt (2031-32) even as the FACTOR falls, because generation grows
+#     faster than it decarbonises; and non-fossil capacity share goes from
+#     ~40% (Mar 2023) to 57.4% (2026-27) to 68.4% (2031-32).
+#     Chain IS Consistent: Nep p.24 records CEA's commitment to "Ensure that
+#     Grid Emission Factors align with reported factors in the CO2 Baseline
+#     Database", answered "Updated according to CO2 baseline database - Yes".
+#     So the NEP anchors and the CO2 Baseline Database 2025 anchor (0.710,
+#     separately verified) are the same measurement family, not two rival
+#     sources.
+#   * CEA CO2 Baseline Database v21 - https://cea.nic.in/cdm-co2-baseline-database/
+#      - 2025 EF anchor 0.71
+#   * PSERC/PSPCL tariff orders FY18-19 -> FY26-27 - https://pserc.gov.in  -
+#     the B2 real-escalation computation, deflated by MoSPI CPI https://mospi.gov.in
+#   * IEA Electricity 2026 (STEPS trend) - https://www.iea.org/reports/electricity-2026
+#; IEA Weo-2025 Cps - https://www.iea.org/reports/world-energy-outlook-2025
+#   * TERI 2050 low-carbon / no-fossil pathways - https://www.teriin.org
+#     ** Tier Downgraded -> Tier 3 (declared). The Url is
+#     the institute HOMEPAGE. TERI is a reputable publisher, but a homepage
+#     evidences no pathway, so what stands here is a declared envelope
+#     assumption, not a citation. Same for the three below. **
+#   * CEEW net-zero sectoral transitions - https://www.ceew.in/publications
+#     ** -> TIER 3 (declared): section LISTING page, not a report. **
+#   * Climate Action Tracker India current-policies -
+#     https://climateactiontracker.org/countries/india/ ( - OPENED and
+#     verified; a real country page carrying India's NEP2023 RE
+#     shares. This is the one link in this block that does evidence something,
+#     though no specific number here is attributed to it.)
+#   * NITI Aayog IESS 2047 (cross-check envelope) - https://iess2047.gov.in
+#     ** Tier Downgraded -> Tier 3 (declared). Niti is a
+# publisher, but this is the tool's landing page and it evidences
+#     no figure. Claiming on a homepage is the specific defect the
+# audit found 29 times; the publisher's tier and the ACCESS
+#     PATH's tier are not the same thing. **
+# The four tariff_escalation_real_annual values themselves are (derived
+# extrapolations - see honesty notes at the bottom); the EF curves are anchored.
+
+price_trajectories:
+  active_scenario: nep_policy_push
+
+  scenarios:
+    # BAU Continued: extrapolation of current policy + status-quo
+    # tariff escalation. CEA v21 anchor for 2025; IEA Steps for trend.
+    bau_continued:
+      tariff_escalation_real_annual: 0.020
+      emission_factor_trajectory_kgco2_per_kwh:
+        "2025": 0.71
+        "2030": 0.58
+        "2040": 0.45
+        "2050": 0.35
+      source: "IEA Electricity 2026 STEPS + CEA CO2 Baseline v21 anchor"
+
+    # Nep Policy Push: matches CEA Nep 2022-32 mid-trajectory exactly,
+    # extrapolated to 2050 using TERI Low-Carbon endpoints.
+    nep_policy_push:
+      # (B2 —: tariff escalation 0.010 → 0.0
+      # (flat real). PSPCL primary orders FY18-19→FY26-27 deflated by
+      # MoSPI CPI give REAL escalation −3.6 to −5.5 %/yr (published
+      # domestic tariff +1.25-1.4 %/yr nominal vs CPI +5 %/yr, excl.
+      # subsidy). The earlier 1.0 %/yr was anchored to an assumed
+      # "1-2 % real" history (see honesty note below) that the B2
+      # computation corrects to negative. Flat-real central avoids
+      # extrapolating the −4 %/yr decline. EF trajectory unchanged
+      # (still CEA NEP 2022-32). Full provenance: realism_gaps_plan.md R4.
+      tariff_escalation_real_annual: 0.0
+      emission_factor_trajectory_kgco2_per_kwh:
+        "2025": 0.71
+        "2027": 0.548
+        "2032": 0.430
+        "2040": 0.30
+        "2050": 0.15
+      source: "EF: CEA NEP 2022-32 (notified May 2023) + TERI 2050 Low-Carbon; tariff: flat-real per B2 PSPCL FY18-26 computation"
+
+    # High Renewables: TERI No-Fossil + CEEW 2050 net-zero envelope.
+    # Declining real tariff is plausible if renewables deflate faster
+    # than ToU surcharges (RE-LCOE 2024 already ~Rs 2.5/kWh).
+    high_renewables:
+      tariff_escalation_real_annual: -0.005
+      emission_factor_trajectory_kgco2_per_kwh:
+        "2025": 0.71
+        "2030": 0.50
+        "2040": 0.20
+        "2050": 0.05
+      source: "TERI No-Fossil + CEEW 2050 net-zero"
+
+    # Stress Coal Lock-in: Climate Action Tracker current-policies +
+    # IEA CPS. Mostly used as a Pareto-bracket worst-case for
+    # robustness checks; not a likely outcome.
+    stress_coal_lock_in:
+      tariff_escalation_real_annual: 0.035
+      emission_factor_trajectory_kgco2_per_kwh:
+        "2025": 0.71
+        "2030": 0.65
+        "2040": 0.55
+        "2050": 0.45
+      source: "CAT current-policies + IEA WEO-2025 CPS"
+
+# Honesty notes (carry into thesis discussion chapter):
+#   * No published source gives a 25-year India retail-tariff curve.
+#     The four `tariff_escalation_real_annual` values above are
+#     extrapolated from historical CAGR + capacity-mix proxies.
+#   * (B2 correction): an earlier note here assumed "1-2 %
+#     real, FY14-19". A direct computation from PSPCL primary tariff
+#     orders FY18-19→FY26-27 deflated by MoSPI CPI gives REAL escalation
+#     of −3.6 to −5.5 %/yr (published domestic tariff +1.25-1.4 %/yr
+#     nominal vs CPI ~+5 %/yr; FY26-27 cut the energy charge). So the
+#     central case was re-anchored to flat-real (0.0). bau/stress remain
+#     as upper-bracket sensitivity scenarios; high_renewables (−0.5 %)
+#     is closest to the realised Punjab trend.
+#   * Retail tariffs are politically set; PSPCL agricultural subsidies
+#     etc. are NOT forecastable. Treat as a structural assumption
+#     per scenario rather than a prediction.
+#   * Single all-India EF masks regional variance: Punjab sits on the
+#     Northern grid which typically runs 2-5% above the all-India EF.
+#   * ToU band design (peak / super-peak windows) is a regulatory
+#     choice in flux post-2024 MoP smart-meter ToU mandate. Fixed
+#     assumption in the model, not a prediction.

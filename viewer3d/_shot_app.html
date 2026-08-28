@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Urja capture frame</title>
+    <!--
+      STILL-CAPTURE WRAPPER FOR THE URJA PWA, 2026-08-17.
+
+      The viewer harness (`_capture.html`) reads a WebGL canvas with toBlob().
+      The Urja app has no canvas - it is DOM and CSS - so that route cannot see
+      it at all. Instead this page loads the app in a phone-shaped iframe,
+      selects a tab, and lets Edge's own `--screenshot` rasterise the composited
+      result. Edge captures iframes, so the app appears in the shot.
+
+        msedge --headless=new --screenshot=out.png --window-size=520,1000
+               --virtual-time-budget=12000
+               "http://localhost:8731/viewer3d/_shot_app.html?tab=energy"
+
+      `--virtual-time-budget` is CORRECT here and wrong for animation: it
+      fast-forwards timers so the app finishes booting before the single shot,
+      then exits. Used on the sun sweep it silently PAUSED the page at frame 74.
+    -->
+    <style>
+      html,body{margin:0;padding:0;background:#0b1220;
+                display:flex;align-items:center;justify-content:center;height:100%}
+      /* iPhone-13-ish logical viewport, so the PWA lays out as a phone rather
+         than a squashed desktop page */
+      #phone{width:390px;height:844px;border:0;border-radius:26px;
+             box-shadow:0 24px 70px rgba(0,0,0,.55);background:#000}
+    </style>
+  </head>
+  <body>
+    <iframe id="phone" src="../app/index.html"></iframe>
+    <script>
+      const Q = new URLSearchParams(location.search);
+      const TAB = Q.get("tab") || "home";
+      // Which household the shots are taken as. `residential_mid` is the modal
+      // tier (45% of households) so it is the honest default; pass tier=
+      // residential_low or residential_high to shoot the other two.
+      const TIER = Q.get("tier") || "residential_mid";
+      const f = document.getElementById("phone");
+
+      // The app opens on a SPLASH, not on a tab, and nothing is reachable
+      // until a home has been chosen.
+      //
+      // REWRITTEN. The sequence drove `#splash-cta`,
+      // `#tier-filter` and `#cell-list .cell-item`, and NONE of those ids
+      // exists in the app any more - it renders from `data-act` attributes
+      // into #sheet. Every one of those selectors silently returned null, the
+      // optional-chaining swallowed it, and all eight app stills came back as
+      // the same splash screen. Selectors are asserted below rather than
+      // assumed: a step that finds nothing says so in the console and in the
+      // page title, so a stale harness fails loudly next time.
+      const need = (d, sel, label) => {
+        const el = d.querySelector(sel);
+        if (!el) { console.error("[urja] MISSING " + label + ": " + sel);
+                   document.title = "URJA_FAIL_" + label; }
+        return el;
+      };
+      const steps = [
+        // VIVA FIRST, not last. `data-act="picker"` reopens the home sheet
+        // unless viva is on, and the header carries such a button, so with
+        // viva applied at the end the picker could still be sitting open over
+        // the tab at capture time - which is exactly what the first corrected
+        // run produced. Turning it on before the flow starts also freezes the
+        // numbers for every subsequent frame.
+        [300,  (d) => { if (Q.get("viva") === "1")
+          d.dispatchEvent(new KeyboardEvent("keydown", { key: "v", bubbles: true })); }],
+        // "Choose my home" on the first-run sheet.
+        [500,  (d) => need(d, '[data-act="startpick"]', "startpick")?.click()],
+        // Tier filter inside the picker, when one is requested.
+        [800,  (d) => { const b = d.querySelector('[data-act="tier"][data-arg="' + TIER + '"]');
+                        if (b) b.click(); }],
+        // Any home in the list. `pick` carries the cell id in data-arg.
+        [800,  (d) => need(d, '[data-act="pick"]', "pick")?.click()],
+        // Bottom navigation only exists once a home is chosen.
+        [900,  (d) => need(d, '[data-tab="' + TAB + '"]', "tab-" + TAB)?.click()],
+        // Defensive: close the home sheet if any path left it open.
+        [400,  (d) => { const x = d.querySelector('[data-act="closepicker"]');
+                        if (x) x.click(); }],
+        [400,  (d) => need(d, '[data-tab="' + TAB + '"]', "tab-retry-" + TAB)?.click()],
+        [900,  (d) => {
+          const onTab = !!d.querySelector("#nav [data-tab]");
+          const splash = !!d.querySelector('[data-act="startpick"]');
+          if (!onTab || splash) { document.title = "URJA_FAIL_still_on_splash"; return; }
+          document.title = "URJA_" + TAB;
+          console.log("[urja] tab=" + TAB + " tier=" + TIER + " ready");
+        }],
+      ];
+
+      f.addEventListener("load", () => {
+        const d = f.contentDocument;
+        let t = 0;
+        for (const [dt, fn] of steps) { t += dt; setTimeout(() => { try { fn(d); } catch (e) {} }, t); }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DISTRICT_v3 capture harness</title>
+    <!--
+      HEADLESS CAPTURE HARNESS, 2026-08-17.
+
+      WHY IT EXISTS. Driving the viewer through a visible browser pane forces a
+      human to keep that pane on screen: the moment it is hidden the page stops
+      compositing, deck.gl stops drawing, and canvas readback returns the same
+      stale buffer over and over. Measured, not assumed - two "different" frames
+      came back with identical MD5s.
+
+      Headless Chromium does not throttle on visibility, so this page loads the
+      viewer in a same-origin iframe at a fixed size, drives it, reads its
+      WebGL canvas and POSTs each frame to the local sink. Nobody has to watch
+      anything.
+
+      Run (Edge is Chromium and is already installed):
+        msedge --headless=new --disable-gpu-sandbox --window-size=1620,940
+               http://localhost:8731/viewer3d/_capture.html?run=sunsweep
+
+      Query params:  run=<name>  frames=<n>  quality=<0-1>  sink=<port>
+    -->
+    <style>
+      html,body{margin:0;padding:0;background:#0b1220;overflow:hidden}
+      /* the viewer is rendered at exactly 16:9 so the canvas comes out 16:9 too */
+      #stage{width:1600px;height:900px;border:0;display:block}
+      #log{position:fixed;left:8px;bottom:8px;color:#9fb;font:12px monospace;z-index:9}
+    </style>
+  </head>
+  <body>
+    <!-- src is set HERE, not by the driver. Setting it in JS meant the frame
+         first loaded about:blank, whose `load` event was already queued by the
+         time the driver attached its once-listener - so the driver resolved on
+         the BLANK document, then waited 90 s for a viewer that was never in it
+         and gave up. Cost one silent stills run. Load it inline instead. -->
+    <iframe id="stage" src="./index.html"></iframe>
+    <div id="log">booting…</div>
+    <script>
+      const Q = new URLSearchParams(location.search);
+      const RUN = Q.get("run") || "sunsweep";
+      const NFRAMES = parseInt(Q.get("frames") || "144", 10);
+      const QUALITY = parseFloat(Q.get("quality") || "0.85");
+      const SINK = "http://127.0.0.1:" + (Q.get("sink") || "8732");
+      const log = (m) => { document.getElementById("log").textContent = m;
+                           console.log("[capture] " + m); };
+
+      const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const settle = async (ms = 90) => { await frame(); await wait(ms); };
+
+      /** Wait until the viewer inside the iframe has actually drawn something.
+          Re-reads contentDocument on EVERY poll: the document object is
+          replaced when the frame navigates, so a reference cached before
+          navigation goes stale and would be polled forever. */
+      async function waitForViewer(iframe, timeoutMs = 90000) {
+        const t0 = Date.now();
+        while (Date.now() - t0 < timeoutMs) {
+          const doc = iframe.contentDocument;
+          const c = doc && doc.getElementById("deckgl-overlay");
+          if (c && c.width > 100 && doc.getElementById("sun-time")) {
+            // one more beat so the first real frame is on the buffer
+            await settle(600);
+            return c;
+          }
+          await wait(250);
+        }
+        throw new Error("viewer did not come up within " + timeoutMs + " ms");
+      }
+
+      async function post(seq, blob) {
+        await fetch(SINK + "/frame?run=" + RUN + "&seq=" + String(seq).padStart(4, "0"),
+                    { method: "POST", body: blob });
+      }
+
+      /** Orbit the camera by dragging the compass face - the only reachable
+          route to viewState.bearing, since the Deck instance is module-scope. */
+      function makeOrbiter(win, doc) {
+        const face = doc.querySelector(".compass-panel");
+        if (!face) return () => {};
+        face.style.setProperty("display", "block", "important");
+        face.setPointerCapture = () => {};
+        let ang = 0;
+        const r = face.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const rad = Math.min(r.width, r.height) * 0.35;
+        const pe = (type, a, buttons) => face.dispatchEvent(
+          new win.PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1,
+            pointerType: "mouse", isPrimary: true, buttons,
+            clientX: cx + rad * Math.cos(a), clientY: cy + rad * Math.sin(a) }));
+        return (delta) => { pe("pointerdown", ang, 1); pe("pointermove", ang + delta, 1);
+                            pe("pointerup", ang + delta, 0); ang += delta; };
+      }
+
+      const setEl = (doc, id, v) => { const e = doc.getElementById(id); if (!e) return;
+        e.value = v; e.dispatchEvent(new Event("input", { bubbles: true }));
+        e.dispatchEvent(new Event("change", { bubbles: true })); };
+      const click = (doc, id) => doc.getElementById(id)?.click();
+      const layout = (doc, l) => [...doc.querySelectorAll("#layout-buttons button")]
+        .find((b) => b.dataset.layout === l)?.click();
+
+      /* ---------------- the two runs ---------------- */
+
+      async function runSunSweep(win, doc, c, orbit, shot) {
+        // 21 June: the solstice gives the longest shadow arc of the year
+        setEl(doc, "sun-date", 172);
+        await settle(500);
+        const ORBIT_TOTAL = 0.55;                    // ~31 deg across the sweep
+        for (let i = 0; i < NFRAMES; i++) {
+          setEl(doc, "sun-time", (4 + 16 * i / (NFRAMES - 1)).toFixed(3));  // 04:00 -> 20:00
+          orbit(ORBIT_TOTAL / NFRAMES);
+          await settle(70);
+          await shot(i);
+          if (i % 12 === 0) log("sunsweep " + i + "/" + NFRAMES);
+        }
+      }
+
+      async function runDemo(win, doc, c, orbit, shot) {
+        let s = 0;
+        const hold = async (n, ms = 80) => { for (let i = 0; i < n; i++) { orbit(0.004); await settle(ms); await shot(s++); } };
+        setEl(doc, "sun-date", 172); setEl(doc, "sun-time", 10); await settle(600);
+
+        await hold(22);                                            // establish
+        for (let h = 10; h <= 18; h += 0.5) { setEl(doc, "sun-time", h); orbit(0.006); await settle(80); await shot(s++); }
+        for (const id of ["pv-overlay-toggle", "shading-overlay-toggle",
+                          "pv-deployment-toggle", "electrical-overlay-toggle"]) {
+          click(doc, id); await hold(11); click(doc, id); await settle(150);
+        }
+        for (const l of ["zirakpur_ribbon", "chandigarh_sector", "dispersed_low",
+                         "compact_centre", "radial", "optimised_sa"]) {
+          layout(doc, l); await settle(1600); await hold(10);
+        }
+        click(doc, "pv-deployment-toggle");
+        for (const p of ["2030", "2042", "2055", "2030"]) {
+          const sel = doc.getElementById("cockpit-period");
+          if (sel) { sel.value = p; sel.dispatchEvent(new Event("change", { bubbles: true })); }
+          await settle(900); await hold(11);
+        }
+        click(doc, "pv-deployment-toggle");
+        for (let h = 18; h <= 23; h += 0.25) { setEl(doc, "sun-time", h); orbit(0.006); await settle(80); await shot(s++); }
+        await hold(18);
+        log("demo frames " + s);
+      }
+
+      /* ---------------- stills ----------------
+         The shot list and per-shot state are lifted from
+         screenshots/github-20260610/manifest.json so the new set is directly
+         comparable with the June one: same names, same order, same states.
+         PNG here, not JPEG - these are stills, and the README shows them at
+         full width where JPEG ringing on the UI text would be visible. */
+
+      const STILLS = [
+        ["01_town_overview_day",           { time: 12.0,  overlay: null,     cockpit: false }],
+        ["02_golden_hour_shadows",         { time: 17.25, overlay: null,     cockpit: false }],
+        ["03_night_lighting_streetlights", { time: 21.0,  overlay: null,     cockpit: false }],
+        ["04_pv_potential_overlay",        { time: 12.0,  overlay: "pv",     cockpit: false }],
+        ["05_pv_deployment_carports",      { time: 12.0,  overlay: "deploy", cockpit: false }],
+        ["06_shading_penalty_overlay",     { time: 12.0,  overlay: "shade",  cockpit: false }],
+        ["07_electrical_grid_energy_flows",{ time: 19.0,  overlay: "grid",   cockpit: false }],
+        ["07b_electrical_midday_export_arcs", { time: 12.0, overlay: "grid", cockpit: false }],
+        ["08_cockpit_live_flow",           { time: 12.0,  overlay: null,     cockpit: true, tab: "live" }],
+        ["09_cockpit_energy_trends",       { time: 12.0,  overlay: null,     cockpit: true, tab: "trends" }],
+        ["10_cockpit_trading_tariff",      { time: 20.0,  overlay: null,     cockpit: true, tab: "trading" }],
+        ["11_cockpit_impact_ppa",          { time: 12.0,  overlay: null,     cockpit: true, tab: "impact" }],
+        // NEW for this set - the June run predates all three
+        ["12_layout_baseline2_sprawl",     { time: 12.0,  overlay: null,     cockpit: false, layout: "zirakpur_ribbon" }],
+        ["13_layout_chandigarh_sector",    { time: 12.0,  overlay: null,     cockpit: false, layout: "chandigarh_sector" }],
+        ["14_town_overview_2055",          { time: 12.0,  overlay: "deploy", cockpit: false, period: "2055" }],
+      ];
+      const OVERLAY_BTN = { pv: "pv-overlay-toggle", shade: "shading-overlay-toggle",
+                            deploy: "pv-deployment-toggle", grid: "electrical-overlay-toggle" };
+
+      async function runStills(win, doc, c) {
+        setEl(doc, "sun-date", 172);
+        let live = null;                        // currently-enabled overlay
+        for (const [name, st] of STILLS) {
+          if (st.layout) layout(doc, st.layout);
+          else if (doc.getElementById("layout-select")?.value !== "optimised_sa") layout(doc, "optimised_sa");
+          await settle(1400);
+
+          if (live && live !== st.overlay) { click(doc, OVERLAY_BTN[live]); live = null; await settle(200); }
+          if (st.overlay && live !== st.overlay) { click(doc, OVERLAY_BTN[st.overlay]); live = st.overlay; await settle(400); }
+
+          if (st.period) { const s = doc.getElementById("cockpit-period");
+                           if (s) { s.value = st.period; s.dispatchEvent(new Event("change", { bubbles: true })); } }
+          if (st.tab) doc.querySelector('[data-cockpit-tab="' + st.tab + '"]')?.click();
+
+          const panel = doc.getElementById("cockpit-panel");
+          const wantCockpit = !!st.cockpit;
+          if (panel && panel.classList.contains("hidden") === wantCockpit) click(doc, "cockpit-toggle");
+
+          setEl(doc, "sun-time", st.time);
+          await settle(1100);
+          const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+          await fetch(SINK + "/frame?run=" + RUN + "&seq=" + name, { method: "POST", body: blob });
+          log("still " + name);
+        }
+      }
+
+      /* ---------------- driver ---------------- */
+
+      (async () => {
+        try {
+          const iframe = document.getElementById("stage");
+          // NOTE the Urja PWA is NOT captured here. This harness reads a WebGL
+          // canvas with toBlob; the app is plain DOM and CSS, which has no
+          // canvas to read. It is captured instead by `_shot_app.html` plus
+          // Edge's own `--screenshot`, which rasterises the composited page.
+          //
+          // Do not wait on the iframe `load` event. It may already have fired
+          // before this ran, in which case a once-listener never resolves.
+          // waitForViewer polls for the real thing instead, which is correct
+          // whether the frame is still loading or finished ten seconds ago.
+          const c = await waitForViewer(iframe);
+          const win = iframe.contentWindow, doc = iframe.contentDocument;
+          log("viewer up, canvas " + c.width + "x" + c.height);
+          const orbit = makeOrbiter(win, doc);
+          const shot = async (i) => {
+            const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", QUALITY));
+            await post(i, blob);
+          };
+          if (RUN === "demo") await runDemo(win, doc, c, orbit, shot);
+          else if (RUN === "stills") await runStills(win, doc, c);
+          else await runSunSweep(win, doc, c, orbit, shot);
+          await fetch(SINK + "/done?run=" + RUN, { method: "POST" });
+          log("DONE " + RUN);
+          document.title = "CAPTURE_DONE";
+        } catch (e) {
+          log("FAILED: " + e.message);
+          document.title = "CAPTURE_FAILED";
+          console.error(e);
+        }
+      })();
+    </script>
+  </body>
+</html>

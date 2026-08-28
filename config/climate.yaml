@@ -1,0 +1,370 @@
+# Punjab climate normals for Zirakpur / Mohali (lat 30.64 N, lon 76.82 E).
+# Temperature / RH / rainfall proxied by the IMD Chandigarh station
+# (closest long-term reference; values originally pasted from
+# `PROJECT/zirakpur_climate.md`, Perplexity-sourced from IMD).
+# (A19 / B2 hook) — back-filled the four NASA POWER fields
+# NASA Power Linked (named-source sweep - it was named
+# throughout this file and never linked): NASA Prediction Of Worldwide
+# Energy Resources, https://power.larc.nasa.gov/ (, NASA LaRC).
+# PROVENANCE NOTE: unlike most citations in this project the primary
+# evidence here is a Local Data File that was downloaded from that
+# service and lives in the repo - `Project/Data/NASA Power Data.csv`.
+# So the numbers are reproducible from the file regardless of the
+# portal, which is a stronger position than a web citation.
+# from `Project/Data/NASA Power Data.csv` (11-year monthly climatology
+# 2014-2024 at lat 30.64, lon 76.82, exact Zirakpur cell):
+#   * cloud_cover_pct         (NASA POWER CLOUD_AMT, %)
+#   * diffuse_fraction_pct    (DIFF / DWN ratio x 100, %)
+#   * wind10m_ms              (NASA POWER WS10M, m/s)
+#   * wind_direction_dominant (NASA POWER WD10M, degrees-from-north)
+# (A19 PM2.5 land) — pm25_ugm3 back-filled from 4-year daily
+# climatology (2022-2025) at CPCB Sector 22 Chandigarh CPCC monitoring
+# station (~15 km from Zirakpur), source file
+# `PROJECT/DATA/comparision20260519082635.xlsx`. 1,461 daily 24-h means,
+# 36 missing days (2.5%); the monthly figures below are arithmetic means
+# of valid daily readings within each month-of-year across the 4 years.
+# The series captures the Indo-Gangetic Plain seasonality (stubble-burning
+# Oct-Nov, winter inversion Dec-Jan, monsoon trough Jul-Aug). 2024 January
+# saw a 165 µg/m³ anomaly from a severe stubble-burn event; the 4-year
+# mean is more thesis-defensible than any single year.
+# — fog_days + dust_storm_days landed from IMD Climate
+# Hazards & Vulnerability Atlas for Chandigarh UT district, 1981-2010
+# climatological normals (https://imdpune.gov.in/hazardatlas/dustnew.html
+# and the "Fog" tab on the same atlas).
+# IMD's authoritative ANNUAL maps give Chandigarh:
+#   * dust_storm_days annual = 0.2 /yr  (low; east of main Aravalli-Thar
+#     dust corridor)
+#   * fog_days        annual = 13  /yr  (IMD strict definition: WMO codes
+#     40-49 at 08:30 IST, visibility < 1 km; "mist" code 10 EXCLUDED)
+# Per-month tile values from the same atlas are stored under each month
+# block; their sums (dust 0.94, fog 10.5) diverge from the annual maps
+# due to different IMD aggregation between monthly and annual products.
+# Per-month values feed the A19 multipliers; annual numbers are kept for
+# thesis triangulation.
+# Honesty note: lived-experience Punjab winter has 30-60+ visibility-
+# impaired mornings/yr, but most are MIST (code 10), not FOG (codes
+# 40-49) under IMD's strict 1 km cutoff. The A19 fog multiplier therefore
+# Conservatively Under-Estimates winter PV soiling. Stage F could split
+# fog + mist into separate multipliers (mist ~75 % yield retention vs
+# fog's 30 %).
+# All four A19 climate fields (pm25_ugm3, fog_days, dust_storm_days,
+# rain_days for soiling rain-recovery) are now populated. A19 multipliers
+# are ACTIVE on every PV-yield builder in `energy/network.py`.
+# Use in the model.
+#: this list used to present all eleven entries
+# as though they were equally live, and three of them were not. `rainfall_mm`,
+# `cloud_cover_pct`, `diffuse_fraction_pct`, `wind10m_ms` and
+# `wind_direction_dominant` have ZERO reads anywhere in energy/, core/ or
+# layout/ - verified by grep, not by reading the comment. Two of those five
+# were described with a "future"/"Stage F" hedge; three were not, and
+# `wind10m_ms` in particular was credited with driving a microclimate effect
+# it has never driven. Counts below are actual code reads.
+# LIVE - read by the model:
+#   * t_mean_c   (3 reads)  - PV temperature derating; the DHW inlet proxy and
+#                             the space-heating degree days (HEAT-1); the
+#                             cooling degree days. Also wired via
+#                             `pv_inverter.ambient_temperature_c_by_month`.
+#   * t_max_c    (2 reads)  - peak PV cell temperature; the heat-wave month
+#                             multiplier; the triangular CDD form
+#   * t_min_c    (2 reads)  - the triangular CDD form; legacy HDD
+#   * rh14_pct   (1 read)   - desert-cooler effectiveness curve (B1)
+#   * rain_days  (2 reads)  - PV soiling auto-clean (A19)
+#   * fog_days   (1 read)   - A19 fog PV multiplier
+#   * pm25_ugm3  (2 reads)  - A19 soiling PV multiplier
+#   * dust_storm_days (2)   - A19 soiling PV multiplier
+# Not Read BY Any Code - kept as documented site climatology, not as model
+# inputs. Do not cite these as driving any result:
+#                               (a rain DAY cleans a panel; the millimetres do
+#                               not add anything the day-count has not already)
+#   * cloud_cover_pct         - would drive an overcast-day PV derate; the GSA
+#                               hourly shapes already carry real cloud timing,
+#                               so this would double-count
+#   * diffuse_fraction_pct    - would split direct/diffuse PV yield; same
+#                               double-count risk against the GSA anchor
+#   * wind10m_ms              - would drive cross-ventilation cooling relief
+#   * wind_direction_dominant - would drive cross-ventilation orientation
+# Source URLs + tiers (tier labels, citation audit):
+#   * IMD Chandigarh normals (t/rh/rain fields): **, Verified Against The
+#     Primary Publication.** The Viva Guard below is Discharged.
+#     Source: India Meteorological Department, Ministry of Earth Sciences,
+#     'Climatological Tables of Observatories in India 1991-2020',
+#     NINTH EDITION (2022), National Data Centre, foreword July 2022,
+#     Office of Head, Climate Research & Services, Pune. 844 pp.
+#     https://www.imdpune.gov.in/library/public/Climatological%20Tables%201991-2020.pdf
+#     Chandigarh is station index 082, WMO 42105, established 19-06-2009;
+#     its table is on p.197 (temperature, humidity, cloud) and p.198
+#     (precipitation, fog, dust storm, wind).
+#     Cross-Check Result: every month tested reproduces the publication
+#     EXACTLY - jan 18.2/7.2, feb 22.6/10.4, mar 28.0/14.7, apr 34.6/20.3,
+#     may 38.6/24.7, jun 37.7/26.7 (mean daily max / mean daily min, degC).
+#     The values were originally transcribed via a Wikipedia weatherbox
+#     (a ACCESS PATH to data) because the filename tried on
+# 404'd. The transcription was faithful, and the citation
+#     is now the publication itself rather than the route to it.
+#     before the defence so the access path never becomes the story.
+#   * NASA POWER (cloud/diffuse/wind fields):
+#     (11-yr monthly climatology 2014-2024, exact cell lat 30.64 lon 76.82)
+#     *** Homepage Replaced BY A Reproducible Api Call,. *** The
+#     bare power.larc.nasa.gov root could not evidence anything. The POWER
+#     Climatology API is open, so the citation is now the exact query that
+#     produced the data - anyone, including an examiner, can re-run it:
+#     https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=CLOUD_AMT,WS10M,ALLSKY_SFC_SW_DIFF&community=RE&longitude=76.82&latitude=30.64&format=JSON&start=2014&end=2024
+#     VERIFIED by running it: HTTP 200, and the response geometry comes back
+#     as [76.82, 30.64, 423.74] - the EXACT cell this block claims, with the
+#     elevation as a bonus. All three named fields are present. Annual means
+#     returned: CLOUD_AMT 43.98 %, WS10M 2.97 m/s, ALLSKY_SFC_SW_DIFF
+#     1.9377 kWh/m2/day. Header: "NASA/POWER Source Native Resolution
+#     Climatology", API v2.9.7, sources MERRA2 / SYN1DEG / POWER.
+#     This is a BETTER citation than any static URL because it is executable:
+#     the provenance and the query are the same object.
+#   * CPCB CAAQM Sector 22 Chandigarh (pm25_ugm3): - https://cpcb.nic.in/
+#     (4-yr daily climatology 2022-2025, workbook in PROJECT/DATA)
+#   * IMD Climate Hazards & Vulnerability Atlas (fog/dust): -
+#     https://imdpune.gov.in/hazardatlas/dustnew.html
+#   * Global Solar Atlas Zirakpur report (PV monthly shape, single-source):
+#     https://globalsolaratlas.info (workbook../DATA/GSA_Report_Punjab.xlsx)
+#     ** Tier Split was badged "" against a Homepage, which
+#     evidences nothing. Corrected the way the IMD weatherbox entry does it -
+#     separate the Data from the Access Path:
+#         DATA  (Global Solar Atlas / Solargis / World Bank,
+#                     the actual Zirakpur report, retained as the workbook
+#../DATA/GSA_Report_Punjab.xlsx in this project)
+#         Access Path  (site root; the specific report Url is not cited)
+#     The workbook IS held locally, so the data is traceable even though the
+#     link is not. To close this properly, cite the report's own permalink. **
+
+# ---------------------------------------------------------------------------
+# Stage- Solar Single-Source: the PV monthly
+# shape now comes EXCLUSIVELY from the Global Solar Atlas report
+# (../DATA/GSA_Report_Punjab.xlsx) whose satellite-derived DNI already
+# CONTAINS fog attenuation - so the separate A19 fog PV multiplier is RETIRED
+# to avoid double-counting. The IMD fog-day observations below are PRESERVED
+# under `fog_days_observed_unused` (renamed so energy/costs.py
+# pv_fog_multiplier_for_month returns 1.0 via its missing-key path - zero
+# code change; the mechanism + its fixture tests remain intact for any future
+# demand-side fog use). PM2.5/dust SOILING stays live: panel-level deposition
+# is not present in irradiance data (Csir-Ceeri / Iit Roorkee).
+# ---------------------------------------------------------------------------
+climate:
+  jan:
+    t_mean_c: 12.7      # IMD: (max 18.2 + min 7.2) / 2
+    t_max_c: 18.2       # IMD mean daily maximum
+    t_min_c: 7.2        # IMD mean daily minimum
+    rh14_pct: 47        # IMD RH at 17:30 IST (proxy for afternoon)
+    rainfall_mm: 37.8   # IMD average rainfall
+    rain_days: 2.3      # IMD average rainy days (>= 1 mm)
+    cloud_cover_pct: 55.61
+    diffuse_fraction_pct: 45.90
+    wind10m_ms: 2.96
+    wind_direction_dominant: 336
+    pm25_ugm3: 123.2
+    dust_storm_days: 0.01
+    fog_days_observed_unused: 1.2
+  feb:
+    t_mean_c: 16.5
+    t_max_c: 22.6
+    t_min_c: 10.4
+    rh14_pct: 42
+    rainfall_mm: 37.3
+    rain_days: 3.0
+    cloud_cover_pct: 43.47
+    diffuse_fraction_pct: 37.37
+    wind10m_ms: 3.29
+    wind_direction_dominant: 335
+    pm25_ugm3: 70.9
+    dust_storm_days: 0.0
+    fog_days_observed_unused: 1.46
+  mar:
+    t_mean_c: 21.4
+    t_max_c: 28.0
+    t_min_c: 14.7
+    rh14_pct: 34
+    rainfall_mm: 27.4
+    rain_days: 2.2
+    cloud_cover_pct: 40.74
+    diffuse_fraction_pct: 34.40
+    wind10m_ms: 3.49
+    wind_direction_dominant: 327
+    pm25_ugm3: 49.1
+    dust_storm_days: 0.063
+    fog_days_observed_unused: 0.5
+  apr:
+    t_mean_c: 27.5
+    t_max_c: 34.6
+    t_min_c: 20.3
+    rh14_pct: 23
+    rainfall_mm: 17.5
+    rain_days: 1.9
+    cloud_cover_pct: 43.47
+    diffuse_fraction_pct: 34.04
+    wind10m_ms: 3.64
+    wind_direction_dominant: 321
+    pm25_ugm3: 40.5
+    dust_storm_days: 0.1
+    fog_days_observed_unused: 0.052
+  may:
+    t_mean_c: 31.7
+    t_max_c: 38.6
+    t_min_c: 24.7
+    rh14_pct: 23
+    rainfall_mm: 26.8
+    rain_days: 2.2
+    cloud_cover_pct: 46.19
+    diffuse_fraction_pct: 36.68
+    wind10m_ms: 3.50
+    wind_direction_dominant: 306
+    pm25_ugm3: 48.7
+    dust_storm_days: 0.1
+    fog_days_observed_unused: 0.059
+  jun:
+    t_mean_c: 32.2
+    t_max_c: 37.7
+    t_min_c: 26.7
+    rh14_pct: 39
+    rainfall_mm: 146.7
+    rain_days: 6.5
+    cloud_cover_pct: 51.92
+    diffuse_fraction_pct: 40.08
+    wind10m_ms: 3.27
+    wind_direction_dominant: 286
+    pm25_ugm3: 40.2
+    dust_storm_days: 0.1
+    fog_days_observed_unused: 0.8
+  jul:
+    t_mean_c: 30.5
+    t_max_c: 34.1
+    t_min_c: 26.9
+    rh14_pct: 62
+    rainfall_mm: 275.6
+    rain_days: 9.8
+    cloud_cover_pct: 68.47
+    diffuse_fraction_pct: 52.15
+    wind10m_ms: 2.50
+    wind_direction_dominant: 202
+    pm25_ugm3: 24.4
+    dust_storm_days: 0.12
+    fog_days_observed_unused: 0.8
+  aug:
+    t_mean_c: 29.7
+    t_max_c: 33.2
+    t_min_c: 26.2
+    rh14_pct: 70
+    rainfall_mm: 273.0
+    rain_days: 11.1
+    cloud_cover_pct: 63.06
+    diffuse_fraction_pct: 47.23
+    wind10m_ms: 2.37
+    wind_direction_dominant: 269
+    pm25_ugm3: 20.1
+    dust_storm_days: 0.02
+    fog_days_observed_unused: 1.062
+  sep:
+    t_mean_c: 28.7
+    t_max_c: 32.9
+    t_min_c: 24.4
+    rh14_pct: 59
+    rainfall_mm: 154.6
+    rain_days: 6.0
+    cloud_cover_pct: 37.65
+    diffuse_fraction_pct: 36.48
+    wind10m_ms: 2.33
+    wind_direction_dominant: 319
+    pm25_ugm3: 27.9
+    dust_storm_days: 0.12
+    fog_days_observed_unused: 0.7
+  oct:
+    t_mean_c: 25.2
+    t_max_c: 32.0
+    t_min_c: 18.4
+    rh14_pct: 40
+    rainfall_mm: 14.2
+    rain_days: 0.8
+    cloud_cover_pct: 15.31
+    diffuse_fraction_pct: 26.02
+    wind10m_ms: 2.59
+    wind_direction_dominant: 337
+    pm25_ugm3: 55.5
+    dust_storm_days: 0.1
+    fog_days_observed_unused: 1.2
+  nov:
+    t_mean_c: 19.7
+    t_max_c: 27.0
+    t_min_c: 12.3
+    rh14_pct: 40
+    rainfall_mm: 5.2
+    rain_days: 0.5
+    cloud_cover_pct: 27.60
+    diffuse_fraction_pct: 31.06
+    wind10m_ms: 2.81
+    wind_direction_dominant: 337
+    pm25_ugm3: 91.6
+    dust_storm_days: 0.1
+    fog_days_observed_unused: 1.3
+  dec:
+    t_mean_c: 15.1
+    t_max_c: 22.1
+    t_min_c: 8.0
+    rh14_pct: 46
+    rainfall_mm: 22.3
+    rain_days: 1.3
+    cloud_cover_pct: 33.79
+    diffuse_fraction_pct: 32.94
+    wind10m_ms: 2.88
+    wind_direction_dominant: 334
+    pm25_ugm3: 103.2
+    dust_storm_days: 0.1
+    fog_days_observed_unused: 1.4
+
+# Annual climatology.
+# — dust_storm_days_annual landed from IMD Climate
+# Hazards & Vulnerability Atlas for Chandigarh UT district, 1981-2010
+# climatological normal: https://imdpune.gov.in/hazardatlas/dustnew.html
+# IMD's own annual map ("Average Number of Dust Storm Days in Annual,
+# 1981 to 2010") shows Chandigarh district at 0.2 days/year, with legend
+# band 0.01-1.30. That is the authoritative annual figure used here.
+# Methodology note: summing the 12 monthly tile values on the same atlas
+# (jan 0.01, feb 0.00, mar 0.063, apr 0.10, may 0.10, jun 0.10, jul 0.12,
+# aug 0.02, sep 0.12, oct 0.10, nov 0.10, dec 0.10) gives 0.94/yr — an
+# inconsistency with the annual map likely due to different IMD
+# aggregation (monthly tiles double-count multi-day events crossing
+# month boundaries; the annual map is computed directly from event
+# records). The annual map is the cleaner phenomenological count, so
+# 0.2/yr is the canonical value. Both numbers sit at the conservative
+# low end vs. Pratap et al. 2020 NW-India ~4-6/yr, because IMD's strict
+# WMO codes 30-35 (sustained visibility reduction) miss minor blowing-
+# dust events Chandigarh experiences at the east edge of the main dust
+# corridor.
+# NOTE (comment: the MONTHLY dust_storm_days values
+# above ARE consumed by the A19 soiling multiplier (energy/costs.py
+# pv_soiling_multiplier_for_month, landed "Bullet 4"). What is
+# NOT consumed is this ANNUAL aggregate below - kept for provenance only
+# (the 0.2/yr annual map vs 0.94/yr monthly-tile sum inconsistency is
+# documented above).
+annual:
+  dust_storm_days: 0.2
+  # IMD Climate Hazards Atlas (1981-2010) annual map, Chandigarh district.
+
+# ---------------------------------------------------------------------------
+# FX-5/B5: projected AMBIENT PM2.5 decline across the model
+# horizon, as a scale factor on the monthly pm25_ugm3 values above.
+# Consumed by energy/costs.py `pm25_period_soiling_relief` -> multiplies
+# per-period PV yields (cleaner air = less panel soiling in later periods;
+# the dust-storm term is NOT scaled - wind-blown soil, not combustion PM).
+# Basis ( derived from policy trajectories):
+#   * NCAP (National Clean Air Programme, MoEFCC) targets a 40% reduction
+#     in PM concentrations by 2025-26 vs 2017 in non-attainment cities
+#     (https://prana.cpcb.gov.in/  target; achievement partial -
+#     IQAir/CPCB monitoring shows IGP improvements lagging targets).
+#   * Punjab farm-fire counts fell ~70% 2021->2024 (PPCB/CAQM monitoring,
+#), directly cutting the Oct-Nov stubble PM2.5 spike.
+#   * CEEW / Iit-Delhi Igp projections under current-policy scenarios show
+#     ambient PM2.5 declining ~15-30% by the 2040s.
+# Conservative central path: -12% by 2042, -20% by 2055 (the register B5
+# "~0.80" landing). Linear interpolation between keys; 1.0 = today's air.
+# Yield effect is small by construction (annual-mean soiling loss is only
+# ~2-3%): relief ~ +0.4-0.7% on 2042/2055-period PV yields.
+# ---------------------------------------------------------------------------
+pm25_ambient_scale_by_period:
+  "2030": 1.00
+  "2042": 0.88
+  "2055": 0.80

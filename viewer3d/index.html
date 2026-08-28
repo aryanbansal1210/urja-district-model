@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>District 3D Viewer</title>
+    <link rel="icon" href="data:," />
+    <!-- THE ?v= STRINGS BELOW ONLY WORK IF THIS FILE ITSELF IS RE-FETCHED.
+         2026-08-26: the version strings were bumped and the page still loaded
+         the old assets, because the browser reused a CACHED index.html and so
+         never saw the new tags. A query string cannot bust the document that
+         carries it. These three lines stop the HTML being reused, which makes
+         an ordinary reload sufficient - no Ctrl+Shift+R, and no visitor to the
+         published site pinned to a stale build. -->
+    <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="expires" content="0" />
+    <!-- Bump this whenever styles.css changes, or the browser serves the old
+         sheet and new classes render transparent. Caught 2026-08-22 when the
+         carport and canal legend swatches came back rgba(0,0,0,0) against CSS
+         that was correct on disk. -->
+    <!-- BUMP BOTH v= STRINGS WHENEVER app.js OR styles.css CHANGES. They are
+         the only thing that makes a browser re-fetch: on 2026-08-26 the CSS
+         was edited without bumping, so a reload served FRESH JS against a
+         CACHED stylesheet - the new element appeared completely unstyled and
+         drew on top of the cockpit. Same failure mode the service worker's
+         VERSION contract exists to prevent in the app. -->
+    <link rel="stylesheet" href="./styles.css?v=20260826-cockpit" />
+  </head>
+  <body class="theme-dark">
+    <main class="viewer-shell">
+      <div id="deck-container" aria-label="3D district map"></div>
+
+      <section class="topbar" aria-label="Viewer controls">
+        <div class="brand-block">
+          <!-- Eyebrow removed (the author: "it still says district_3, get
+               rid of that"). It was the internal project code sitting above a
+               title that already names the thing. -->
+          <h1>District 3D Viewer</h1>
+        </div>
+
+        <div class="control-row">
+          <label class="field hidden-select-field">
+            <span>Layout</span>
+            <select id="layout-select"></select>
+          </label>
+
+          <div class="field layout-button-field">
+            <span>Layout</span>
+            <div id="layout-buttons" class="layout-buttons" role="tablist" aria-label="Layout comparison"></div>
+            <!-- UI-1: hidden, the author. Still populated, just not shown. -->
+            <div id="archetype-summary" class="archetype-summary" aria-live="polite" hidden></div>
+          </div>
+
+          <button id="pv-overlay-toggle" class="tool-button" type="button" aria-pressed="false">PV</button>
+          <button id="shading-overlay-toggle" class="tool-button" type="button" aria-pressed="false">Shade</button>
+          <button id="pv-deployment-toggle" class="tool-button" type="button" aria-pressed="false">Deploy</button>
+          <button id="electrical-overlay-toggle" class="tool-button" type="button" aria-pressed="false">Grid</button>
+
+          <label class="field slider-field sun-slider-field">
+            <span>Date</span>
+            <input
+              id="sun-date"
+              type="range"
+              min="1"
+              max="366"
+              value="131"
+              step="1"
+            />
+            <output id="sun-date-label">May 11</output>
+          </label>
+
+          <label class="field slider-field sun-slider-field">
+            <span>Time</span>
+            <input
+              id="sun-time"
+              type="range"
+              min="0"
+              max="24"
+              value="12"
+              step="0.25"
+            />
+            <output id="sun-time-label">12:00</output>
+          </label>
+
+          <!-- UI-1: hidden, the author. The sun state is already legible from
+               the scene and the time slider. -->
+          <div class="sun-status" aria-live="polite" hidden>
+            <span id="sun-status-label">Day</span>
+          </div>
+
+          <div id="tariff-status" class="tariff-status tariff-shoulder" aria-live="polite">
+            <span class="tariff-kicker">Tariff</span>
+            <span id="tariff-status-label">Shoulder</span>
+          </div>
+
+          <!-- UI-1: hidden, the author. Plates are taken in dark. -->
+          <button id="theme-toggle" type="button" hidden>Light</button>
+          <!-- UI-1: kept, but renamed. "Camera" read as a
+               mode or a capture control; what it does is return the view to
+               its opening position, so the label now says that. Title added
+               because a one-word button should not have to be guessed at. -->
+          <button id="camera-reset" type="button"
+                  title="Return the view to its original position and angle.">Origin</button>
+          <button id="cockpit-toggle" class="tool-button cockpit-toggle" type="button" aria-pressed="true">Cockpit</button>
+          <!-- CLEAN MODE, for taking stills by hand.
+               Hides every panel so the scene fills the window; the hotspot in
+               the bottom-left corner brings them back on hover. Shortcut: C. -->
+          <button id="clean-toggle" class="tool-button" type="button"
+                  aria-pressed="false"
+                  title="Hide all panels for a clean screenshot (C). Hover the bottom-left corner to bring them back.">Clean</button>
+        </div>
+      </section>
+
+      <section id="energy-summary" class="energy-summary hidden" aria-label="Energy scenario summary">
+        <div class="energy-summary-header">
+          <span class="eyebrow">Energy scenarios</span>
+          <h2>Energy</h2>
+        </div>
+        <div id="energy-summary-grid" class="energy-summary-grid"></div>
+      </section>
+
+      <div id="cockpit-data-hint" class="cockpit-data-hint hidden" role="status">
+        Dispatch results unavailable; 3D scene loaded without the energy cockpit.
+      </div>
+
+      <aside id="cockpit-panel" class="cockpit" aria-label="District energy cockpit">
+        <div class="cockpit-screen">
+          <header class="cockpit-header">
+            <div>
+              <span class="cockpit-kicker">District cockpit</span>
+              <h2 id="cockpit-title">Optimised SA</h2>
+            </div>
+            <div class="cockpit-header-actions">
+              <div id="cockpit-tariff-mode" class="cockpit-mode-toggle" aria-label="Tariff mode">
+                <button class="active" type="button" data-tariff-mode="fixed_tou" aria-pressed="true">Fixed ToU</button>
+                <button type="button" data-tariff-mode="agile_iex" aria-pressed="false">Agile</button>
+              </div>
+              <select id="cockpit-period" aria-label="Model period"></select>
+              <select id="cockpit-scenario" aria-label="Energy scenario"></select>
+              <span id="cockpit-status" class="cockpit-status">Loading</span>
+            </div>
+          </header>
+
+          <main class="cockpit-pages">
+            <section class="cockpit-page active" data-cockpit-page="live" aria-label="Live energy flow">
+              <div class="cockpit-flow-hero">
+                <svg class="flow-svg" viewBox="0 0 320 260" aria-hidden="true">
+                  <defs>
+                    <marker id="flow-dot-green" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#22C55E"></circle>
+                    </marker>
+                    <marker id="flow-dot-gold" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#FBBF24"></circle>
+                    </marker>
+                    <marker id="flow-dot-red" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#EF4444"></circle>
+                    </marker>
+                    <marker id="flow-dot-purple" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#A855F7"></circle>
+                    </marker>
+                    <marker id="flow-dot-white" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#F8FAFC"></circle>
+                    </marker>
+                    <marker id="flow-dot-teal" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#2DD4BF"></circle>
+                    </marker>
+                  </defs>
+                  <!-- ORIGINAL HAND-TUNED CURVES, FULLY RESTORED.
+                       Two attempts to generate these were reverted. The clock moved
+                       the NODES and stacked them on the hub. Generated straight
+                       spokes kept the nodes but, with the boxes packed this tightly,
+                       left only slivers of visible line between them, which read as
+                       random dashes - Aryan: "it was fine before". These sweeping
+                       cubics are longer than the gaps they cross and pass BEHIND the
+                       boxes, which is what makes them read as connections.
+                       ONE substitution: the top-left curve served Canal-top and now
+                       serves Firm, which took that slot when canal-top folded into
+                       Solar. Same slot, so the same curve fits.
+                       DO NOT "fix" these by computing them. The viewBox is
+                       deliberately fixed at 320x260 and scales with the panel. -->
+                  <path class="flow-rail" d="M62 92 C80 96,100 105,129 128"></path>
+                  <path class="flow-rail" d="M160 76 C160 91,160 104,160 116"></path>
+                  <path class="flow-rail" d="M88 146 C107 146,123 146,136 146"></path>
+                  <path class="flow-rail" d="M184 146 C199 146,215 146,232 146"></path>
+                  <path class="flow-rail" d="M160 205 C160 184,160 166,160 153"></path>
+                  <!-- Firm's curve is NOT canal-top's. Canal-top was usually hidden
+                       (zero canal PV in 2030) so its sweep across the Solar box never
+                       showed; Firm runs at 3.2 MW and is always visible, so the same
+                       curve clipped Solar's bottom-left corner. Rerouted to pass
+                       BELOW Solar and ABOVE Grid. -->
+                  <path id="flow-path-firm" class="flow-path path-firm" d="M62 92 C80 96,100 105,129 128"></path>
+                  <path id="flow-path-solar" class="flow-path path-solar" d="M160 76 C160 91,160 104,160 116"></path>
+                  <path id="flow-path-grid" class="flow-path path-grid" d="M88 146 C107 146,123 146,136 146"></path>
+                  <path id="flow-path-demand" class="flow-path path-demand" d="M184 146 C199 146,215 146,232 146"></path>
+                  <path id="flow-path-storage" class="flow-path path-storage" d="M160 205 C160 184,160 166,160 153"></path>
+                  <path class="flow-rail" d="M184 114 C206 94,222 68,238 45"></path>
+                  <path id="flow-path-dc" class="flow-path path-dc" d="M184 114 C206 94,222 68,238 45"></path>
+                </svg>
+                <div class="flow-node flow-node-solar">
+                  <span>Solar</span>
+                  <strong id="flow-solar-value">--</strong>
+                </div>
+                <div class="flow-node flow-node-grid">
+                  <span>Grid</span>
+                  <strong id="flow-grid-value">--</strong>
+                </div>
+                <div class="flow-node flow-node-hub">
+                  <span>District</span>
+                  <strong>Hub</strong>
+                </div>
+                <div class="flow-node flow-node-demand">
+                  <span>Load</span>
+                  <strong id="flow-demand-value">--</strong>
+                </div>
+                <!-- FIRM GENERATION (the author: "what about the energy from
+                     w2e, biogas, etc, those sources they are not shown in the
+                     cockpit"). biomass + WTE + biogas were already summed in app.js
+                     as `firmKw` and used ONLY to scale the arrows - 18.28 MW_e of
+                     dispatchable plant drove the diagram without appearing in it. -->
+                <div id="flow-node-firm" class="flow-node flow-node-firm">
+                  <span>Firm</span>
+                  <strong id="flow-firm-value">--</strong>
+                </div>
+                <div id="flow-node-dc" class="flow-node flow-node-dc hidden">
+                  <span>Data centre</span>
+                  <strong id="flow-dc-value">--</strong>
+                </div>
+                <div class="flow-node flow-node-storage">
+                  <span>Flex</span>
+                  <strong id="flow-storage-value">--</strong>
+                  <small id="flow-storage-detail">--</small>
+                </div>
+              </div>
+
+              <div id="cockpit-live-chips" class="cockpit-chip-grid"></div>
+
+              <div class="cockpit-drill-list">
+                <button class="cockpit-drill" type="button" data-cockpit-jump="trends">
+                  <span>Energy</span>
+                  <strong id="cockpit-live-energy">--</strong>
+                </button>
+                <button class="cockpit-drill" type="button" data-cockpit-jump="impact">
+                  <span>Impact</span>
+                  <strong id="cockpit-live-self">--</strong>
+                </button>
+                <button class="cockpit-drill" type="button" data-cockpit-jump="trading">
+                  <span>Cost</span>
+                  <strong id="cockpit-live-trading">--</strong>
+                </button>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="trends" aria-label="24 hour energy trends">
+              <div class="cockpit-section-head">
+                <div>
+                  <span class="cockpit-kicker">Today</span>
+                  <h3 id="cockpit-trends-total">Total used --</h3>
+                </div>
+                <div class="cockpit-segmented" aria-label="Chart period">
+                  <button class="active" type="button" data-cockpit-range="day">Day</button>
+                  <button type="button" data-cockpit-range="week">Week</button>
+                  <button type="button" data-cockpit-range="month">Month</button>
+                </div>
+              </div>
+               <!-- EXPAND-1 (, the author: "give an option to make the
+                    demand graph big so we can see it more clearly"). Toggles a
+                    class on <body> that floats the chart over the whole page.
+                    The chart is redrawn from the same data, so nothing about
+                    the numbers changes - only the box it is drawn into. -->
+               <button id="trends-expand" type="button" class="chart-expand"
+                       aria-pressed="false"
+                       title="Show this chart full screen (Esc to close)">Expand</button>
+               <div id="cockpit-trends-chart" class="cockpit-chart"></div>
+               <!-- LEG-POS (, the author: "the trend tab, the graph we
+                    were fixing needs a legend"). It HAD one - it was two strips
+                    further down, so the reader met the tariff strip and the
+                    solar strip before reaching the key to the chart above them.
+                    Moved directly under the chart it explains. -->
+               <div id="cockpit-trends-legend" class="cockpit-mini-legend"></div>
+               <div id="cockpit-tariff-strip" class="cockpit-tariff-strip"></div>
+               <div id="cockpit-solar-strip" class="cockpit-solar-strip"></div>
+              <div id="cockpit-trends-note" class="cockpit-context-note"></div>
+              <div id="cockpit-dsr-chip" class="cockpit-dsr-chip hidden"></div>
+              <div id="cockpit-biomass-chart" class="cockpit-chart cockpit-compact-chart"></div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="trading" aria-label="Energy trading">
+              <div class="cockpit-price-grid">
+                <div>
+                  <span>Buy now</span>
+                  <strong id="cockpit-buy-price">--</strong>
+                </div>
+                <div>
+                  <span>Sell now</span>
+                  <strong id="cockpit-sell-price">--</strong>
+                </div>
+              </div>
+              <div id="cockpit-trading-chart" class="cockpit-chart cockpit-line-chart"></div>
+              <div id="cockpit-trading-legend" class="cockpit-mini-legend"></div>
+              <div class="cockpit-metric-card cockpit-tariff-card">
+                <div class="cockpit-section-head">
+                  <div>
+                    <span>Daily tariff</span>
+                    <strong id="cockpit-tariff-day-label">--</strong>
+                  </div>
+                </div>
+                <div id="cockpit-tariff-chart" class="cockpit-chart cockpit-tariff-chart"></div>
+                <div id="cockpit-tariff-legend" class="cockpit-mini-legend"></div>
+                <small id="cockpit-tariff-note">--</small>
+              </div>
+              <div class="cockpit-metric-card">
+                <span>Net trade today</span>
+                <strong id="cockpit-trade-net">--</strong>
+                <small id="cockpit-trade-detail">--</small>
+              </div>
+              <div class="cockpit-hints">
+                <div>
+                  <span>Best charge window</span>
+                  <strong id="cockpit-best-charge">--</strong>
+                </div>
+                <div>
+                  <span>Best export window</span>
+                  <strong id="cockpit-best-export">--</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="impact" aria-label="Carbon and equity impact">
+              <div class="cockpit-impact-grid">
+                <div>
+                  <span>CO2 saved today</span>
+                  <strong id="cockpit-co2-today">--</strong>
+                </div>
+                <div>
+                  <span>Annual saving vs business as usual</span>
+                  <strong id="cockpit-co2-year">--</strong>
+                </div>
+                <div>
+                  <span>Annual demand</span>
+                  <strong id="cockpit-annual-demand">--</strong>
+                  <small id="cockpit-demand-detail">--</small>
+                </div>
+                <div>
+                  <span>Annual cost</span>
+                  <strong id="cockpit-cost-year">--</strong>
+                  <small id="cockpit-cost-detail">--</small>
+                </div>
+                <div title="25-year total = the multi-period LP lifetime objective (2030/2042/2055 weighted 8/9/8 yr, real terms; retail tariff escalation 0.0 real per PSERC-vs-CPI, economics.yaml).">
+                  <span>25-year cost</span>
+                  <strong id="cockpit-lifetime-cost">--</strong>
+                  <small id="cockpit-lifetime-detail">--</small>
+                </div>
+                <div>
+                  <span>Annual emissions</span>
+                  <strong id="cockpit-annual-emissions">--</strong>
+                  <small id="cockpit-price-scenario-detail">--</small>
+                </div>
+                <div>
+                  <span>Net cost</span>
+                  <strong id="cockpit-net-cost">--</strong>
+                  <small id="cockpit-net-cost-detail">--</small>
+                </div>
+                <div>
+                  <span>Renewable</span>
+                  <strong id="cockpit-renewable-share">--</strong>
+                  <small id="cockpit-renewable-detail">--</small>
+                </div>
+                <div id="cockpit-stage-d-pill" class="cockpit-stage-d-pill hidden">
+                  <span>Network detail</span>
+                  <strong>Per-cell</strong>
+                  <small>Enabled in dispatch JSON</small>
+                </div>
+                <div id="cockpit-ppa-pill" class="cockpit-ppa-pill hidden">
+                  <span>Power purchase agreement</span>
+                  <strong>Data centre</strong>
+                  <small>Enabled in dispatch metadata</small>
+                </div>
+              </div>
+              <div class="cockpit-metric-card">
+                <span>Source mix today</span>
+                <div id="cockpit-source-stack" class="cockpit-source-stack"></div>
+                <small id="cockpit-source-label">--</small>
+              </div>
+              <div class="cockpit-metric-card" hidden><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Installed capacity</span>
+                <div id="cockpit-tech-stack" class="cockpit-stagec-stack"></div>
+              </div>
+              <div class="cockpit-metric-card" hidden><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Model checks</span>
+                <div id="cockpit-realism-checks" class="cockpit-realism-checks"></div>
+              </div>
+              <div class="cockpit-metric-card">
+                <span>Carbon-cost Pareto</span>
+                <div id="cockpit-pareto-chart" class="cockpit-pareto-chart"></div>
+                <small id="cockpit-pareto-label">--</small>
+              </div>
+              <div class="cockpit-metric-card" hidden><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Price trajectory spread</span>
+                <div id="cockpit-price-scenario-chart" class="cockpit-pareto-chart"></div>
+                <small>Bars read the pre-computed price sweep; dispatch is not re-solved in the browser.</small>
+              </div>
+              <div class="cockpit-metric-card" hidden><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Equity</span>
+                <strong id="cockpit-equity">EWS bill share, in progress</strong>
+                <small>Ownership tiers and income-linked discount rates are still being modelled.</small>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="cells" aria-label="Selected cell energy drill-down">
+              <div id="cockpit-cell-empty" class="cockpit-empty">
+                Click any district cell to inspect its local energy role.
+              </div>
+              <div id="cockpit-cell-content" class="hidden">
+                <div class="cockpit-cell-head">
+                  <div>
+                    <span class="cockpit-kicker">Selected cell</span>
+                    <h3 id="cockpit-cell-title">Cell</h3>
+                  </div>
+                  <span id="cockpit-cell-tier" class="cockpit-status">Tier --</span>
+                </div>
+                <div id="cockpit-cell-stats" class="cockpit-cell-stats"></div>
+                <div id="cockpit-cell-chart" class="cockpit-chart cockpit-cell-chart"></div>
+                <div id="cockpit-ev-card" class="cockpit-metric-card cockpit-ev-card hidden"></div>
+                <!-- CELLS-1 (, the author: "from cells tab remove
+                     recommended upgrade"). It was a placeholder by its own
+                     admission. Hidden, not deleted - app.js writes to the id. -->
+                <div class="cockpit-metric-card" hidden>
+                  <span>Suggested upgrade</span>
+                  <strong id="cockpit-cell-upgrade">--</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="settings" aria-label="Cockpit settings">
+              <div class="cockpit-settings-list">
+                <!-- FOUR ROWS REMOVED (the author: "a lot of the options
+                     are already in the banner. like pv, shading penalty, grid").
+                     Show PV overlay / Shading penalty / PV deployment / Electrical
+                     network called setPvOverlayEnabled, setShadingOverlayEnabled,
+                     setPvDeploymentOverlayEnabled and setElectricalOverlayEnabled -
+                     the SAME setters as the banner's PV / Shade / Deploy / Grid
+                     buttons. Each control existed twice and the pair had to be kept
+                     in sync by hand. The features are unchanged; the banner is now
+                     their only switch. "Building axis arrows" below is NOT in the
+                     banner, so it stays. -->
+                <label>
+                  <span>Building axis arrows</span>
+                  <input id="cockpit-setting-axis" type="checkbox" />
+                </label>
+                <label>
+                  <span>PV panel markers</span>
+                  <input id="cockpit-setting-panels" type="checkbox" checked />
+                </label>
+                <label>
+                  <span>Local access lanes</span>
+                  <input id="cockpit-setting-local-streets" type="checkbox" checked />
+                </label>
+                <label>
+                  <span>Greenway paths</span>
+                  <input id="cockpit-setting-greenway-paths" type="checkbox" checked />
+                </label>
+                <label title="Flat planning shadow from the current sun slider; it stays on the ground and does not climb walls. The Shade overlay remains the model PV-yield truth.">
+                  <span>Sun shadows</span>
+                  <input id="cockpit-setting-real-time-shadows" type="checkbox" checked />
+                </label>
+                <!-- "Placement flags" and "Carport sites" removed at
+                     Aryan's request. Placement flags is a build-time audit overlay,
+                     and carport sites deploy nothing until 2042, so on the default
+                     view its only effect was to announce that nothing is there. -->
+                <!-- Settings pruned at: Vegetation,
+                     Street trees, Streetlight poles, Road cross-sections,
+                     Trajectory, Keep cockpit open and the energy-schema status
+                     line all removed. The features keep their default state;
+                     only the controls are gone. -->
+                <button id="cockpit-reset" type="button">Reset cockpit</button>
+              </div>
+            </section>
+          </main>
+
+          <nav class="cockpit-tabs" aria-label="Cockpit tabs">
+            <button class="active" type="button" data-cockpit-tab="live">Live</button>
+            <button type="button" data-cockpit-tab="trends">Trends</button>
+            <button type="button" data-cockpit-tab="trading">Trading</button>
+            <button type="button" data-cockpit-tab="impact">Impact</button>
+            <button type="button" data-cockpit-tab="cells">Cells</button>
+            <button type="button" data-cockpit-tab="settings">Settings</button>
+          </nav>
+        </div>
+      </aside>
+
+      <section id="layout-summary-panel" class="info-panel" aria-label="Layout summary">
+        <div class="info-panel-head">
+          <h2 id="layout-title">Loading</h2>
+          <button
+            id="info-panel-toggle"
+            class="panel-toggle"
+            type="button"
+            aria-controls="layout-summary-body"
+            aria-expanded="true"
+            title="Collapse layout summary"
+          >-</button>
+        </div>
+        <div id="layout-summary-body" class="info-panel-body">
+          <p id="layout-subtitle">Preparing georeferenced typology forms.</p>
+          <dl class="stat-grid">
+            <div>
+              <dt>Cells</dt>
+              <dd id="stat-cells">--</dd>
+            </div>
+            <div>
+              <dt>Features</dt>
+              <dd id="stat-features">--</dd>
+            </div>
+            <div>
+              <dt>Built forms</dt>
+              <dd id="stat-built">--</dd>
+            </div>
+            <div>
+              <dt id="stat-pv-label">PV 2030</dt>
+              <dd id="stat-pv">--</dd>
+            </div>
+            <div>
+              <dt>Road ROW</dt>
+              <dd id="stat-road-network">--</dd>
+            </div>
+            <div>
+              <dt>Walkability</dt>
+              <dd id="stat-walkability">--</dd>
+            </div>
+            <div>
+              <dt>Sun</dt>
+              <dd id="stat-sun">--</dd>
+            </div>
+            <div>
+              <dt>Clear-sky PV</dt>
+              <dd id="stat-pv-now">--</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="legend-panel" class="legend-panel" aria-label="Land-use legend">
+        <div class="legend-panel-head">
+          <h2>Land use</h2>
+          <button
+            id="legend-panel-toggle"
+            class="panel-toggle"
+            type="button"
+            aria-controls="legend-panel-body"
+            aria-expanded="true"
+            title="Collapse land-use legend"
+          >-</button>
+        </div>
+        <div id="legend-panel-body" class="legend-panel-body">
+          <div id="legend-list"></div>
+        </div>
+      </section>
+
+      <!-- CARPORT-1 (, the author: "the PV on parking lot is high
+           rooftop? why?"). The legend named only rooftop bands and the farm,
+           so every other PV surface was read against a rooftop scale. It also
+           called the ramp "low/medium/high", which invited the separate
+           complaint that short buildings looked high: the ramp is kWp per
+           cell, so it tracks roof AREA, and a wide warehouse beats a narrow
+           tower. Bands are now labelled by what they measure, and each
+           non-roof technology carries its own key entry. -->
+      <section id="pv-overlay-legend" class="pv-overlay-legend hidden" aria-label="PV ceiling legend">
+        <h2>PV ceiling, kWp per cell</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-none"></span>
+          <span>No PV</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-low"></span>
+          <span>Rooftop, small</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-mid"></span>
+          <span>Rooftop, medium</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-high"></span>
+          <span>Rooftop, large</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-farm"></span>
+          <span>Solar farm, ground</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-carport"></span>
+          <span>Carport</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-canal"></span>
+          <span>Canal-top / floating</span>
+        </div>
+        <p class="pv-legend-note">Rooftop bands scale with roof area, not
+          building height.</p>
+      </section>
+
+      <section id="shading-overlay-legend" class="pv-overlay-legend shading-overlay-legend hidden" aria-label="PV shading penalty legend">
+        <h2>Shading penalty</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch shade-none"></span>
+          <span id="shading-legend-none">1.00 yield</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch shade-mid"></span>
+          <span id="shading-legend-mid">0.80 yield</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch shade-high"></span>
+          <span id="shading-legend-high">0.60 yield</span>
+        </div>
+        <p id="shading-legend-note" class="legend-note">Red = most shaded in this layout, NOT 40% physical loss. Tooltips show pv_shading_reason.</p>
+      </section>
+
+      <section id="pv-deployment-legend" class="pv-overlay-legend hidden" aria-label="PV deployment legend">
+        <h2>PV deployed</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-none"></span>
+          <span>No deployed PV</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-mid"></span>
+          <span>Partially used</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-full"></span>
+          <span>Ceiling used</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-farm"></span>
+          <span>Solar farm deployed</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-floating"></span>
+          <span>Canal-top PV deployed</span>
+        </div>
+        <p class="legend-note">Colour shows deployed kWp divided by the technical ceiling. Roofs fill first because PMSGY keeps rooftop PV cheap, the 864-slice run unlocks carport/canal-top PV, and low-income acceptance was raised.</p>
+      </section>
+
+      <section id="realism-flags-legend" class="pv-overlay-legend realism-flags-legend hidden" aria-label="Placement realism flag legend">
+        <h2>Placement flags</h2>
+        <div id="realism-flags-list"></div>
+        <p class="legend-note">Map overlay only. Dispatch realism checks are in the Impact tab and read dispatch_results.json.</p>
+      </section>
+
+      <section id="carport-sites-legend" class="pv-overlay-legend carport-sites-legend hidden" aria-label="Carport site legend">
+        <h2>Carport sites</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch carport-site-swatch"></span>
+          <span>Discrete canopy site</span>
+        </div>
+        <p class="legend-note">Compact cyan canopy ticks show the 56 exported discrete sites; the layer is off by default.</p>
+      </section>
+
+      <section id="electrical-overlay-legend" class="pv-overlay-legend electrical-overlay-legend hidden" aria-label="Electrical network legend">
+        <h2>Electrical network</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-backbone"></span>
+          <span>33 kV backbone</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-distribution"></span>
+          <span>11 kV distribution</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-import"></span>
+          <span>Import / sink arcs</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-export"></span>
+          <span>Export / source arcs</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-transformer"></span>
+          <span>Transformer zones</span>
+        </div>
+        <!-- The two lines leaving the town had no legend entry, so they read as
+             stray marks (Aryan, 2026-08-24: "looks a bit random"). Both are
+             built by buildElectricalInterconnects() from the substation cell. -->
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-grid-line"></span>
+          <span>National grid interconnection</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-ppa-line"></span>
+          <span>Data-centre PPA line</span>
+        </div>
+        <p id="electrical-legend-note" class="legend-note">Stage-D dispatch layer loading.</p>
+      </section>
+
+      <section id="cell-panel" class="cell-panel hidden" aria-label="Selected cell properties">
+        <div class="cell-panel-header">
+          <div>
+            <span class="eyebrow">Selected cell</span>
+            <h2 id="cell-panel-title">Cell</h2>
+          </div>
+          <button id="cell-panel-close" class="icon-button" type="button" aria-label="Close selected cell panel">x</button>
+        </div>
+        <dl id="cell-panel-grid" class="cell-detail-grid"></dl>
+      </section>
+
+      <section class="compass-panel" aria-label="Map compass">
+        <div class="compass-face">
+          <span class="compass-label compass-n">N</span>
+          <span class="compass-label compass-e">E</span>
+          <span class="compass-label compass-s">S</span>
+          <span class="compass-label compass-w">W</span>
+          <span id="compass-needle" class="compass-needle"></span>
+        </div>
+      </section>
+
+      <section class="scale-panel" aria-label="Map scale">
+        <div id="scale-bar" class="scale-bar"></div>
+        <span id="scale-label">1 km</span>
+      </section>
+
+      <!-- The invisible reveal target for clean mode. It carries no paint of
+           its own, so it never appears in a screenshot; it exists only to
+           catch the pointer in the bottom-left corner and bring the panels
+           back. Inert unless clean mode is on. -->
+      <div id="clean-hotspot" aria-hidden="true"></div>
+
+      <section id="loading-panel" class="loading-panel" aria-live="polite">
+        Loading 3D district data...
+      </section>
+      <div id="cockpit-chart-tooltip" class="cockpit-chart-tooltip hidden" role="tooltip"></div>
+    </main>
+
+    <script src="https://unpkg.com/deck.gl@^9.0.0/dist.min.js"></script>
+    <!-- Bump this whenever app.js changes: it is the browser cache key, and a
+         stale bundle silently invalidates any plate shot against it. -->
+    <script src="./app.js?v=20260826-cockpit"></script>
+  </body>
+</html>

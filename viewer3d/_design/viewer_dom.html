@@ -1,0 +1,1315 @@
+
+    <main class="viewer-shell">
+      <div id="deck-container" aria-label="3D district map" class="deck-widget-container" style="background: linear-gradient(rgb(138, 182, 220) 0%, rgb(196, 214, 224) 78%);"><canvas id="deckgl-overlay" tabindex="0" style="touch-action: none; user-select: none; -webkit-user-drag: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); outline: none; width: 100%; position: absolute; height: 100%;"></canvas><div style="pointer-events: none; position: absolute; overflow: hidden;"><div class="fill" style="position: absolute; z-index: 2; inset: 0px;"><div class="deck-tooltip" style="z-index: 1; position: absolute; pointer-events: none; color: rgb(160, 167, 180); background-color: rgb(41, 50, 60); padding: 10px; top: 0px; left: 0px; display: none;"></div></div></div></div>
+
+      <section class="topbar" aria-label="Viewer controls">
+        <div class="brand-block">
+          <span class="eyebrow">DISTRICT_v3</span>
+          <h1>3D master-plan viewer</h1>
+        </div>
+
+        <div class="control-row">
+          <label class="field hidden-select-field">
+            <span>Layout</span>
+            <select id="layout-select"><option value="optimised_sa">Planned Integrated (this thesis)</option><option value="zirakpur_ribbon">Baseline 2 - Unplanned Conventional</option><option value="chandigarh_sector">Chandigarh Sector</option><option value="dispersed_low">Dispersed Low</option><option value="compact_centre">Compact Centre</option><option value="radial">Radial</option></select>
+          </label>
+
+          <div class="field layout-button-field">
+            <span>Layout</span>
+            <div id="layout-buttons" class="layout-buttons" role="tablist" aria-label="Layout comparison"><button type="button" class="layout-tab active" data-layout="optimised_sa" role="tab" aria-selected="true">Optimised</button><button type="button" class="layout-tab" data-layout="zirakpur_ribbon" role="tab" aria-selected="false">Baseline 2 - Unplanned Conventional</button></div>
+            <!-- UI-1: hidden, the author. Still populated, just not shown. -->
+            <div id="archetype-summary" class="archetype-summary" aria-live="polite" hidden=""><span class="archetype-chip"><strong>optimised_sa</strong><span>8/18 pass</span><span>gap-sum 1.04</span></span><span class="archetype-chip delta-good"><strong>severity leader</strong><span>smallest gap-sum</span></span></div>
+          </div>
+
+          <button id="pv-overlay-toggle" class="tool-button" type="button" aria-pressed="false" title="Show per-cell PV ceiling overlay">PV</button>
+          <button id="shading-overlay-toggle" class="tool-button" type="button" aria-pressed="false" title="Show annual-average PV shading penalty overlay">Shade</button>
+          <button id="pv-deployment-toggle" class="tool-button" type="button" aria-pressed="false" title="Show deployed PV versus ceiling overlay">Deploy</button>
+          <button id="electrical-overlay-toggle" class="tool-button" type="button" aria-pressed="false" title="Show Stage-D electrical network">Grid</button>
+
+          <label class="field slider-field sun-slider-field">
+            <span>Date</span>
+            <input id="sun-date" type="range" min="1" max="366" value="131" step="1">
+            <output id="sun-date-label">Aug 22</output>
+          </label>
+
+          <label class="field slider-field sun-slider-field tariff-shoulder">
+            <span>Time</span>
+            <input id="sun-time" type="range" min="0" max="24" value="12" step="0.25">
+            <output id="sun-time-label">12:00 Shoulder</output>
+          </label>
+
+          <!-- UI-1: hidden, the author. The sun state is already legible from
+               the scene and the time slider. -->
+          <div class="sun-status" aria-live="polite" hidden="">
+            <span id="sun-status-label">High sun</span>
+          </div>
+
+          <div id="tariff-status" class="tariff-status tariff-shoulder" aria-live="polite" title="Shoulder tariff band">
+            <span class="tariff-kicker">Tariff</span>
+            <span id="tariff-status-label">Shoulder</span>
+          </div>
+
+          <!-- UI-1: hidden, the author. Plates are taken in dark. -->
+          <button id="theme-toggle" type="button" hidden="">Light</button>
+          <!-- UI-1: kept, but renamed. "Camera" read as a
+               mode or a capture control; what it does is return the view to
+               its opening position, so the label now says that. Title added
+               because a one-word button should not have to be guessed at. -->
+          <button id="camera-reset" type="button" title="Return the view to its original position and angle.">Original view</button>
+          <button id="cockpit-toggle" class="tool-button cockpit-toggle active" type="button" aria-pressed="true">Cockpit</button>
+          <!-- CLEAN MODE, for taking stills by hand.
+               Hides every panel so the scene fills the window; the hotspot in
+               the bottom-left corner brings them back on hover. Shortcut: C. -->
+          <button id="clean-toggle" class="tool-button" type="button" aria-pressed="false" title="Hide all panels for a clean screenshot (C). Hover the bottom-left corner to bring them back.">Clean</button>
+        </div>
+      </section>
+
+      <section id="energy-summary" class="energy-summary hidden" aria-label="Energy scenario summary">
+        <div class="energy-summary-header">
+          <span class="eyebrow">Stage B preview</span>
+          <h2>Energy</h2>
+        </div>
+        <div id="energy-summary-grid" class="energy-summary-grid"><div class="energy-row header"><span>Scenario</span><span>INR/yr</span><span>tCO2/yr</span><span>PV design</span></div><div class="energy-row"><strong>BAU</strong><span>3.64 B</span><span>311,116 t</span><span>0 kWp</span><div class="energy-row-sub"><span class="energy-chip">INR/day 9.98 M</span><span class="energy-chip">CO2/day 852 t</span><span class="energy-chip">Net cost 6.86 INR/kWh</span><span class="energy-chip">Renewables 0%</span></div></div><div class="energy-row"><strong>PV only</strong><span>2.24 B</span><span>198,823 t</span><span>370.55 MWp</span><div class="energy-row-sub"><span class="energy-chip">INR/day 6.14 M</span><span class="energy-chip">CO2/day 545 t</span><span class="energy-chip">Net cost 4.22 INR/kWh</span><span class="energy-chip">Renewables 54%</span></div></div><div class="energy-row"><strong>PV + batt</strong><span>2.24 B</span><span>198,823 t</span><span>370.55 MWp</span><div class="energy-row-sub"><span class="energy-chip">INR/day 6.13 M</span><span class="energy-chip">CO2/day 545 t</span><span class="energy-chip">Net cost 4.22 INR/kWh</span><span class="energy-chip">Renewables 54%</span></div></div><div class="energy-row"><strong>PV + V2G</strong><span>2.23 B</span><span>198,064 t</span><span>370.55 MWp</span><div class="energy-row-sub"><span class="energy-chip">INR/day 6.12 M</span><span class="energy-chip">CO2/day 543 t</span><span class="energy-chip">Net cost 4.21 INR/kWh</span><span class="energy-chip">Renewables 54%</span></div></div><div class="energy-row"><strong>PV + V2G + biomass</strong><span>2.03 B</span><span>158,544 t</span><span>370.55 MWp</span><div class="energy-row-sub"><span class="energy-chip">INR/day 5.56 M</span><span class="energy-chip">CO2/day 434 t</span><span class="energy-chip">Net cost 3.83 INR/kWh</span><span class="energy-chip">Renewables 69%</span></div></div><div class="energy-row"><strong>Full stack fixed</strong><span>3.73 B</span><span>19,041 t</span><span>165.62 MWp</span><div class="energy-row-sub"><span class="energy-chip">INR/day 10.21 M</span><span class="energy-chip">CO2/day 52 t</span><span class="energy-chip">Net cost 7.07 INR/kWh</span><span class="energy-chip">Renewables 57%</span></div></div></div>
+      </section>
+
+      <div id="cockpit-data-hint" class="cockpit-data-hint hidden" role="status">
+        Dispatch results unavailable; 3D scene loaded without the energy cockpit.
+      </div>
+
+      <aside id="cockpit-panel" class="cockpit" aria-label="District energy cockpit">
+        <div class="cockpit-screen">
+          <header class="cockpit-header">
+            <div>
+              <span class="cockpit-kicker">District cockpit</span>
+              <h2 id="cockpit-title">Optimised</h2>
+            </div>
+            <div class="cockpit-header-actions">
+              <div id="cockpit-tariff-mode" class="cockpit-mode-toggle" aria-label="Tariff mode">
+                <button class="active" type="button" data-tariff-mode="fixed_tou" aria-pressed="true" title="Fixed ToU scenario">Fixed ToU</button>
+                <button type="button" data-tariff-mode="agile_iex" aria-pressed="false" title="Agile IEX scenario">Agile</button>
+              </div>
+              <select id="cockpit-period" aria-label="Model period"><option value="2030">2030 base year</option><option value="2042">2042</option><option value="2055">2055</option></select>
+              <select id="cockpit-scenario" aria-label="Energy scenario"><option value="bau" title="BAU">BAU</option><option value="pv_only" title="PV only">PV only</option><option value="pv_battery" title="PV + batt">PV + batt</option><option value="pv_battery_v2g" title="PV + V2G (7966 V2G units deployed)">PV + V2G (V2G on)</option><option value="pv_battery_v2g_biomass" title="PV + V2G + biomass (7966 V2G units deployed)">PV + V2G + biomass (V2G on)</option><option value="full_stack" title="Full stack fixed">Full stack fixed</option><option value="full_stack_agile" title="Full stack Agile">Full stack Agile</option><option value="full_stack_dc_ppa" title="Full stack DC-PPA">Full stack DC-PPA</option><option value="full_stack_dc_ppa_green" title="Full stack green DC-PPA">Full stack green DC-PPA</option></select>
+              <span id="cockpit-status" class="cockpit-status status-exporting">Exporting</span>
+            </div>
+          </header>
+
+          <main class="cockpit-pages">
+            <section class="cockpit-page" data-cockpit-page="live" aria-label="Live energy flow">
+              <div class="cockpit-flow-hero">
+                <svg class="flow-svg" viewBox="0 0 320 260" aria-hidden="true">
+                  <defs>
+                    <marker id="flow-dot-green" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#22C55E"></circle>
+                    </marker>
+                    <marker id="flow-dot-gold" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#FBBF24"></circle>
+                    </marker>
+                    <marker id="flow-dot-red" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#EF4444"></circle>
+                    </marker>
+                    <marker id="flow-dot-purple" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#A855F7"></circle>
+                    </marker>
+                    <marker id="flow-dot-white" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#F8FAFC"></circle>
+                    </marker>
+                    <marker id="flow-dot-teal" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <circle cx="3.5" cy="3.5" r="3" fill="#2DD4BF"></circle>
+                    </marker>
+                  </defs>
+                  <!-- FLOW-2. The canal
+                       FLOW path was hidden when canal PV is zero, but this RAIL
+                       underneath it was not, so a grey stub still ran to nothing. -->
+                  <path id="flow-rail-floating" class="flow-rail" d="M100 62 C121 82,132 99,143 116" style="display: none;"></path>
+                  <path class="flow-rail" d="M160 76 C160 91,160 104,160 116"></path>
+                  <path class="flow-rail" d="M88 146 C107 146,123 146,136 146"></path>
+                  <path class="flow-rail" d="M184 146 C199 146,215 146,232 146"></path>
+                  <path class="flow-rail" d="M160 205 C160 184,160 166,160 153"></path>
+                  <path id="flow-path-floating" class="flow-path path-floating" d="M100 62 C121 82,132 99,143 116" style="display: none; stroke: rgb(45, 212, 191); stroke-width: 3.4; opacity: 0; animation-duration: 1.7s;"></path>
+                  <path id="flow-path-solar" class="flow-path path-solar" d="M160 76 C160 91,160 104,160 116" marker-end="url(#flow-dot-green)" style="stroke: rgb(34, 197, 94); stroke-width: 7.925; opacity: 0.989239; animation-duration: 0.962228s;"></path>
+                  <path id="flow-path-grid" class="flow-path path-grid" d="M136 146 C123 146,107 146,88 146" marker-end="url(#flow-dot-gold)" style="stroke: rgb(251, 191, 36); stroke-width: 5.36863; opacity: 0.622456; animation-duration: 1.37903s;"></path>
+                  <path id="flow-path-demand" class="flow-path path-demand" d="M184 146 C199 146,215 146,232 146" marker-end="url(#flow-dot-white)" style="stroke: rgb(56, 189, 248); stroke-width: 4.90099; opacity: 0.555359; animation-duration: 1.45527s;"></path>
+                  <path id="flow-path-storage" class="flow-path path-storage" d="M160 153 C160 166,160 184,160 205" marker-end="url(#flow-dot-purple)" style="stroke: rgb(168, 85, 247); stroke-width: 3.93416; opacity: 0.416641; animation-duration: 1.61291s;"></path>
+                  <!-- DC-3 (, the author: "there is still no energy
+                       flowing or link to the data centre"). The node existed
+                       with nothing joining it to the hub. Curves up-right to
+                       the offtake node, mirroring the canal link on the left. -->
+                  <path class="flow-rail" d="M184 114 C206 94,222 68,238 45"></path>
+                  <path id="flow-path-dc" class="flow-path path-dc" d="M184 114 C206 94,222 68,238 45" marker-end="url(#flow-dot-teal)" style="stroke: rgb(45, 212, 191); stroke-width: 3.99471; opacity: 0.425328; animation-duration: 1.60304s;"></path>
+                </svg>
+                <div id="flow-node-floating" class="flow-node flow-node-floating hidden">
+                  <span>Canal-top</span>
+                  <strong id="flow-floating-value">0 kW</strong>
+                </div>
+                <div class="flow-node flow-node-solar">
+                  <span>Solar</span>
+                  <strong id="flow-solar-value">190.2 MW</strong>
+                </div>
+                <div class="flow-node flow-node-grid">
+                  <span>Grid</span>
+                  <strong id="flow-grid-value">82.8 MW</strong>
+                </div>
+                <div class="flow-node flow-node-hub">
+                  <span>District</span>
+                  <strong>Hub</strong>
+                </div>
+                <div class="flow-node flow-node-demand">
+                  <span>Load</span>
+                  <strong id="flow-demand-value">63.1 MW</strong>
+                </div>
+                <!-- DC-2 (, the author: "why is there still no data
+                     centre"). The chip added earlier went into the chip GRID
+                     below, not the hub diagram he was looking at. It is an
+                     outflow from the hub, so it sits opposite Load. -->
+                <div id="flow-node-dc" class="flow-node flow-node-dc">
+                  <span>Data centre</span>
+                  <strong id="flow-dc-value">25.0 MW</strong>
+                </div>
+                <div class="flow-node flow-node-storage">
+                  <span>Flex</span>
+                  <strong id="flow-storage-value">22.5 MW</strong>
+                  <small id="flow-storage-detail" title="Flex now: Thermal -16.1 MW, DSR -6.3 MW, EV -6 kW"></small>
+                </div>
+              </div>
+
+              <div id="cockpit-live-chips" class="cockpit-chip-grid">
+    <div class="cockpit-chip" style="--chip:#FBBF24">
+      <strong>128.2 MW</strong>
+      <span>Solar farm</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#0EA5E9">
+      <strong>0 kW</strong>
+      <span>Carport PV</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#22C55E">
+      <strong>62.0 MW</strong>
+      <span>Rooftop PV</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#F97316">
+      <strong>2.0 MW</strong>
+      <span>WTE</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#14B8A6">
+      <strong>1.1 MW</strong>
+      <span>Biogas</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#F8FAFC">
+      <strong>63.1 MW</strong>
+      <span>Demand</span>
+    </div>
+    <div class="cockpit-chip cockpit-chip-idle" style="--chip:#2DD4BF" title="Load moved out of the evening peak. Acts 18:00-21:00, June to September.">
+      <strong>0 kW</strong>
+      <span>DSR reduce</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#2DD4BF" title="The same load, arriving earlier in the day.">
+      <strong>6.3 MW</strong>
+      <span>DSR add</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#A3E635">
+      <strong>6 kW</strong>
+      <span>EV shift in</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#60A5FA">
+      <strong>16.1 MW</strong>
+      <span>Thermal net</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#FBBF24">
+      <strong>82.8 MW</strong>
+      <span>Grid export</span>
+    </div>
+    <div class="cockpit-chip" style="--chip:#FBBF24" title="Surplus sold to the adjacent data centre. Daylight only, 06:00 to 17:00.">
+      <strong>25.0 MW</strong>
+      <span>To data centre</span>
+    </div></div>
+
+              <div class="cockpit-drill-list">
+                <button class="cockpit-drill" type="button" data-cockpit-jump="trends">
+                  <span>Energy</span>
+                  <strong id="cockpit-live-energy">527.60 GWh demand / yr</strong>
+                </button>
+                <button class="cockpit-drill" type="button" data-cockpit-jump="impact">
+                  <span>Impact</span>
+                  <strong id="cockpit-live-self">118,172 t / yr</strong>
+                </button>
+                <button class="cockpit-drill" type="button" data-cockpit-jump="trading">
+                  <span>Cost</span>
+                  <strong id="cockpit-live-trading">Rs 1.73 B / yr</strong>
+                </button>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="trends" aria-label="24 hour energy trends">
+              <div class="cockpit-section-head">
+                <div>
+                  <span class="cockpit-kicker">Today</span>
+                  <h3 id="cockpit-trends-total">2030 today - 1.75&nbsp;GWh</h3>
+                </div>
+                <div class="cockpit-segmented" aria-label="Chart period">
+                  <button class="active" type="button" data-cockpit-range="day" aria-pressed="true">Day</button>
+                  <button type="button" data-cockpit-range="week" aria-pressed="false">Week</button>
+                  <button type="button" data-cockpit-range="month" aria-pressed="false">Month</button>
+                </div>
+              </div>
+               <!-- EXPAND-1 (, the author: "give an option to make the
+                    demand graph big so we can see it more clearly"). Toggles a
+                    class on <body> that floats the chart over the whole page.
+                    The chart is redrawn from the same data, so nothing about
+                    the numbers changes - only the box it is drawn into. -->
+               <button id="trends-expand" type="button" class="chart-expand" aria-pressed="false" title="Show this chart full screen (Esc to close)">Expand</button>
+               <div id="cockpit-trends-chart" class="cockpit-chart">
+    <svg viewBox="0 0 360 188" role="img" aria-label="Today stacked energy by source">
+      
+    <g>
+      <line x1="64" y1="152" x2="342" y2="152" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="59" y="155" text-anchor="end" fill="#93a4b8" font-size="9">0 kWh</text>
+    </g>
+  
+    <g>
+      <line x1="64" y1="86" x2="342" y2="86" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="59" y="89" text-anchor="end" fill="#93a4b8" font-size="9">250.0 MWh</text>
+    </g>
+  
+    <g>
+      <line x1="64" y1="20" x2="342" y2="20" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="59" y="23" text-anchor="end" fill="#93a4b8" font-size="9">500.0 MWh</text>
+    </g>
+  
+      <line x1="68" y1="152" x2="342" y2="152" stroke="rgba(255,255,255,0.22)"></line>
+      <line x1="68" y1="20" x2="68" y2="152" stroke="rgba(255,255,255,0.16)"></line>
+      
+      <polygon points="79.41666666666667,114.37439950534247 102.25,120.17411915292284 125.08333333333334,128.86733987499596 147.91666666666669,152 170.75,152 193.58333333333331,152 216.41666666666666,152 239.25,152 262.08333333333337,152 284.91666666666663,124.48561896957258 307.75,124.90396909337014 330.58333333333337,112.68797517137787 330.58333333333337,152 307.75,152 284.91666666666663,152 262.08333333333337,152 239.25,152 216.41666666666666,152 193.58333333333331,152 170.75,152 147.91666666666669,152 125.08333333333334,152 102.25,152 79.41666666666667,152" fill="#EF4444" opacity="0.76" data-cockpit-tooltip="Grid import
+Today total: 706.5 MWh (27% of supplied stack)
+Peak time slice: 148.9 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,114.37439950534247 102.25,120.17411915292284 125.08333333333334,128.6941225112718 147.91666666666669,145.19773708695837 170.75,152 193.58333333333331,152 216.41666666666666,152 239.25,152 262.08333333333337,135.44811857746862 284.91666666666663,124.31240160584842 307.75,124.90396909337014 330.58333333333337,112.68797517137787 330.58333333333337,112.68797517137787 307.75,124.90396909337014 284.91666666666663,124.48561896957258 262.08333333333337,152 239.25,152 216.41666666666666,152 193.58333333333331,152 170.75,152 147.91666666666669,152 125.08333333333334,128.86733987499596 102.25,120.17411915292284 79.41666666666667,114.37439950534247" fill="#FBBF24" opacity="0.76" data-cockpit-tooltip="Green open access
+Today total: 89.8 MWh (3% of supplied stack)
+Peak time slice: 62.7 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,114.37439950534247 102.25,120.17411915292284 125.08333333333334,127.62143573230028 147.91666666666669,136.03690236286317 170.75,150.96442978976953 193.58333333333331,151.479883032606 216.41666666666666,152 239.25,152 262.08333333333337,134.307593368879 284.91666666666663,121.28596893719676 307.75,122.4771672394561 330.58333333333337,112.09700840621724 330.58333333333337,112.68797517137787 307.75,124.90396909337014 284.91666666666663,124.31240160584842 262.08333333333337,135.44811857746862 239.25,152 216.41666666666666,152 193.58333333333331,152 170.75,152 147.91666666666669,145.19773708695837 125.08333333333334,128.6941225112718 102.25,120.17411915292284 79.41666666666667,114.37439950534247" fill="#60A5FA" opacity="0.76" data-cockpit-tooltip="Solar hot water
+Today total: 71.9 MWh (3% of supplied stack)
+Peak time slice: 34.7 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,114.37439950534247 102.25,120.17411915292284 125.08333333333334,127.62143573230028 147.91666666666669,136.03690236286317 170.75,150.96442978976953 193.58333333333331,151.479883032606 216.41666666666666,152 239.25,152 262.08333333333337,134.307593368879 284.91666666666663,112.76457693719675 307.75,113.9557752394561 330.58333333333337,112.09700840621724 330.58333333333337,112.09700840621724 307.75,122.4771672394561 284.91666666666663,121.28596893719676 262.08333333333337,134.307593368879 239.25,152 216.41666666666666,152 193.58333333333331,151.479883032606 170.75,150.96442978976953 147.91666666666669,136.03690236286317 125.08333333333334,127.62143573230028 102.25,120.17411915292284 79.41666666666667,114.37439950534247" fill="#60A5FA" opacity="0.76" data-cockpit-tooltip="Thermal store
+Today total: 64.6 MWh (2% of supplied stack)
+Peak time slice: 32.3 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,107.24639950534247 102.25,113.04611915292284 125.08333333333334,120.49343573230028 147.91666666666669,128.9089023628632 170.75,150.96442978976953 193.58333333333331,151.479883032606 216.41666666666666,152 239.25,152 262.08333333333337,127.17959336887898 284.91666666666663,105.63657693719676 307.75,106.82777523945612 330.58333333333337,104.96900840621724 330.58333333333337,112.09700840621724 307.75,113.9557752394561 284.91666666666663,112.76457693719675 262.08333333333337,134.307593368879 239.25,152 216.41666666666666,152 193.58333333333331,151.479883032606 170.75,150.96442978976953 147.91666666666669,136.03690236286317 125.08333333333334,127.62143573230028 102.25,120.17411915292284 79.41666666666667,114.37439950534247" fill="#84CC16" opacity="0.76" data-cockpit-tooltip="Biomass
+Today total: 216.0 MWh (8% of supplied stack)
+Peak time slice: 27.0 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,106.1757328386758 102.25,111.97545248625617 125.08333333333334,119.42276906563362 147.91666666666669,127.8382356961965 170.75,149.89376312310287 193.58333333333331,150.40921636593933 216.41666666666666,150.92933333333335 239.25,150.92933333333335 262.08333333333337,126.10892670221232 284.91666666666663,104.56591027053008 307.75,105.75710857278943 330.58333333333337,103.89834173955057 330.58333333333337,104.96900840621724 307.75,106.82777523945612 284.91666666666663,105.63657693719676 262.08333333333337,127.17959336887898 239.25,152 216.41666666666666,152 193.58333333333331,151.479883032606 170.75,150.96442978976953 147.91666666666669,128.9089023628632 125.08333333333334,120.49343573230028 102.25,113.04611915292284 79.41666666666667,107.24639950534247" fill="#F97316" opacity="0.76" data-cockpit-tooltip="WTE
+Today total: 48.7 MWh (2% of supplied stack)
+Peak time slice: 4.1 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.82876906563361 147.91666666666669,127.24423569619651 170.75,149.29976312310285 193.58333333333331,149.81521636593934 216.41666666666666,150.33533333333332 239.25,150.33533333333332 262.08333333333337,125.51492670221232 284.91666666666663,103.97191027053009 307.75,105.16310857278944 330.58333333333337,103.30434173955058 330.58333333333337,103.89834173955057 307.75,105.75710857278943 284.91666666666663,104.56591027053008 262.08333333333337,126.10892670221232 239.25,150.92933333333335 216.41666666666666,150.92933333333335 193.58333333333331,150.40921636593933 170.75,149.89376312310287 147.91666666666669,127.8382356961965 125.08333333333334,119.42276906563362 102.25,111.97545248625617 79.41666666666667,106.1757328386758" fill="#14B8A6" opacity="0.76" data-cockpit-tooltip="Biogas
+Today total: 27.0 MWh (1% of supplied stack)
+Peak time slice: 2.3 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.82876906563361 147.91666666666669,127.24423569619651 170.75,149.29976312310285 193.58333333333331,149.81521636593934 216.41666666666666,150.33533333333332 239.25,150.33533333333332 262.08333333333337,125.51492670221232 284.91666666666663,103.97191027053009 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.16310857278944 284.91666666666663,103.97191027053009 262.08333333333337,125.51492670221232 239.25,150.33533333333332 216.41666666666666,150.33533333333332 193.58333333333331,149.81521636593934 170.75,149.29976312310285 147.91666666666669,127.24423569619651 125.08333333333334,118.82876906563361 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#06B6D4" opacity="0.76" data-cockpit-tooltip="V2G
+Today total: 565 kWh (0% of supplied stack)
+Peak time slice: 565 kWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.82876906563361 147.91666666666669,127.24423569619651 170.75,149.29976312310285 193.58333333333331,149.81521636593934 216.41666666666666,150.33533333333332 239.25,150.33533333333332 262.08333333333337,125.51492670221232 284.91666666666663,103.97191027053009 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.01391419118666 284.91666666666663,103.97191027053009 262.08333333333337,125.51492670221232 239.25,150.33533333333332 216.41666666666666,150.33533333333332 193.58333333333331,149.81521636593934 170.75,149.29976312310285 147.91666666666669,127.24423569619651 125.08333333333334,118.82876906563361 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#A855F7" opacity="0.76" data-cockpit-tooltip="Battery
+Today total: 0 kWh (0% of supplied stack)
+Peak time slice: 0 kWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.82876906563361 147.91666666666669,127.24423569619651 170.75,149.29976312310285 193.58333333333331,149.81521636593934 216.41666666666666,150.33533333333332 239.25,150.33533333333332 262.08333333333337,125.51492670221232 284.91666666666663,103.97191027053009 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.01391419118666 284.91666666666663,103.97191027053009 262.08333333333337,125.51492670221232 239.25,150.33533333333332 216.41666666666666,150.33533333333332 193.58333333333331,149.81521636593934 170.75,149.29976312310285 147.91666666666669,127.24423569619651 125.08333333333334,118.82876906563361 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#2DD4BF" opacity="0.76" data-cockpit-tooltip="Floating PV
+Today total: 0 kWh (0% of supplied stack)
+Peak time slice: 0 kWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.82876906563361 147.91666666666669,127.24423569619651 170.75,149.29976312310285 193.58333333333331,149.81521636593934 216.41666666666666,150.33533333333332 239.25,150.33533333333332 262.08333333333337,125.51492670221232 284.91666666666663,103.97191027053009 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.01391419118666 284.91666666666663,103.97191027053009 262.08333333333337,125.51492670221232 239.25,150.33533333333332 216.41666666666666,150.33533333333332 193.58333333333331,149.81521636593934 170.75,149.29976312310285 147.91666666666669,127.24423569619651 125.08333333333334,118.82876906563361 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#0EA5E9" opacity="0.76" data-cockpit-tooltip="Carport PV
+Today total: 0 kWh (0% of supplied stack)
+Peak time slice: 0 kWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.6503492294514 147.91666666666669,112.22323365806517 170.75,106.70785969678448 193.58333333333331,84.49579095280212 216.41666666666666,82.66036061386382 239.25,103.42375319718766 262.08333333333337,108.21259465373154 284.91666666666663,103.78885134250953 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.01391419118666 284.91666666666663,103.97191027053009 262.08333333333337,125.51492670221232 239.25,150.33533333333332 216.41666666666666,150.33533333333332 193.58333333333331,149.81521636593934 170.75,149.29976312310285 147.91666666666669,127.24423569619651 125.08333333333334,118.82876906563361 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#FBBF24" opacity="0.76" data-cockpit-tooltip="Solar farm
+Today total: 966.6 MWh (36% of supplied stack)
+Peak time slice: 256.3 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.56398029326587 147.91666666666669,104.95191229473237 170.75,86.09009954319323 193.58333333333331,52.87616050195267 216.41666666666666,49.90046392728685 239.25,80.71493697003199 262.08333333333337,99.83693393947152 284.91666666666663,103.70023672873837 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.01391419118666 284.91666666666663,103.78885134250953 262.08333333333337,108.21259465373154 239.25,103.42375319718766 216.41666666666666,82.66036061386382 193.58333333333331,84.49579095280212 170.75,106.70785969678448 147.91666666666669,112.22323365806517 125.08333333333334,118.6503492294514 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#22C55E" opacity="0.76" data-cockpit-tooltip="Rooftop
+Today total: 467.9 MWh (18% of supplied stack)
+Peak time slice: 124.1 MWh"></polygon>
+    
+      <polygon points="79.41666666666667,105.5817328386758 102.25,111.38145248625617 125.08333333333334,118.56398029326587 147.91666666666669,104.95191229473237 170.75,86.09009954319323 193.58333333333331,52.87616050195267 216.41666666666666,49.90046392728685 239.25,80.71493697003199 262.08333333333337,99.83693393947152 284.91666666666663,103.70023672873837 307.75,105.01391419118666 330.58333333333337,103.30434173955058 330.58333333333337,103.30434173955058 307.75,105.01391419118666 284.91666666666663,103.70023672873837 262.08333333333337,99.83693393947152 239.25,80.71493697003199 216.41666666666666,49.90046392728685 193.58333333333331,52.87616050195267 170.75,86.09009954319323 147.91666666666669,104.95191229473237 125.08333333333334,118.56398029326587 102.25,111.38145248625617 79.41666666666667,105.5817328386758" fill="#F59E0B" opacity="0.76" data-cockpit-tooltip="Curtailment
+Today total: 0 kWh (0% of supplied stack)
+Peak time slice: 0 kWh"></polygon>
+    
+      <polyline points="79.41666666666667,110.5235271712991 102.25,115.5764243165069 125.08333333333334,121.67351658415856 147.91666666666669,118.39266644227571 170.75,119.04997440823445 193.58333333333331,119.71564369822121 216.41666666666666,118.68471845366119 239.25,116.6564899699072 262.08333333333337,113.29523489923164 284.91666666666663,102.1794252330605 307.75,101.28478381018414 330.58333333333337,108.66072857909376" fill="none" stroke="rgba(248,250,252,0.46)" stroke-width="1.25" stroke-dasharray="4 4" data-cockpit-tooltip="Demand before shifting."></polyline>
+      <polyline points="79.41666666666667,110.5235271712991 102.25,115.5764243165069 125.08333333333334,121.67351658415856 147.91666666666669,118.39266644227571 170.75,115.75497184905788 193.58333333333331,116.81703251091236 216.41666666666666,115.35319029902732 239.25,113.12213896689792 262.08333333333337,113.29523489923164 284.91666666666663,107.16148270975445 307.75,106.35630542916573 330.58333333333337,108.66072857909376" fill="none" stroke="#F8FAFC" stroke-width="2.2" data-cockpit-tooltip="Served demand. Stack above it is exported, stored or curtailed."></polyline>
+      <!-- HOVER-1: transparent per-hour columns, LAST so they sit on top
+           of every band and catch the pointer anywhere in the plot. -->
+      <rect x="68" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="00:00-02:00
+Served demand: 157.1 MWh
+
+Grid import: 142.5 MWh
+Biomass: 27.0 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh"></rect><rect x="90.83333333333333" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="02:00-04:00
+Served demand: 138.0 MWh
+
+Grid import: 120.6 MWh
+Biomass: 27.0 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh"></rect><rect x="113.66666666666666" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="04:00-06:00
+Served demand: 114.9 MWh
+
+Grid import: 87.6 MWh
+Biomass: 27.0 MWh
+Solar hot water: 4.1 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh
+Solar farm: 676 kWh
+Green open access: 656 kWh
+Rooftop: 327 kWh"></rect><rect x="136.5" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="06:00-08:00
+Served demand: 127.3 MWh
+
+Solar farm: 56.9 MWh
+Solar hot water: 34.7 MWh
+Rooftop: 27.5 MWh
+Biomass: 27.0 MWh
+Green open access: 25.8 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh"></rect><rect x="159.33333333333331" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="08:00-10:00
+Served demand: 137.3 MWh
+
+Solar farm: 161.3 MWh
+Rooftop: 78.1 MWh
+WTE: 4.1 MWh
+Solar hot water: 3.9 MWh
+Biogas: 2.3 MWh"></rect><rect x="182.16666666666666" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="10:00-12:00
+Served demand: 133.3 MWh
+
+Solar farm: 247.4 MWh
+Rooftop: 119.8 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh
+Solar hot water: 2.0 MWh"></rect><rect x="205" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="12:00-14:00
+Served demand: 138.8 MWh
+
+Solar farm: 256.3 MWh
+Rooftop: 124.1 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh"></rect><rect x="227.83333333333331" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="14:00-16:00
+Served demand: 147.3 MWh
+
+Solar farm: 177.7 MWh
+Rooftop: 86.0 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh"></rect><rect x="250.66666666666666" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="16:00-18:00
+Served demand: 146.6 MWh
+
+Solar farm: 65.5 MWh
+Green open access: 62.7 MWh
+Rooftop: 31.7 MWh
+Biomass: 27.0 MWh
+Solar hot water: 4.3 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh"></rect><rect x="273.5" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="18:00-20:00
+Served demand: 169.8 MWh
+
+Grid import: 104.2 MWh
+Thermal store: 32.3 MWh
+Biomass: 27.0 MWh
+Solar hot water: 11.5 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh
+Solar farm: 693 kWh
+Green open access: 656 kWh
+Rooftop: 336 kWh"></rect><rect x="296.3333333333333" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="20:00-22:00
+Served demand: 172.9 MWh
+
+Grid import: 102.6 MWh
+Thermal store: 32.3 MWh
+Biomass: 27.0 MWh
+Solar hot water: 9.2 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh
+V2G: 565 kWh"></rect><rect x="319.16666666666663" y="20" width="22.833333333333332" height="132" fill="transparent" data-cockpit-tooltip="22:00-00:00
+Served demand: 164.2 MWh
+
+Grid import: 148.9 MWh
+Biomass: 27.0 MWh
+WTE: 4.1 MWh
+Biogas: 2.3 MWh
+Solar hot water: 2.2 MWh"></rect>
+      <!-- TEXT-1.
+           It was two floating labels in different corners, in different
+           greys, one of which appeared and vanished. The legend under the
+           chart now names both lines properly, so these are gone. -->
+      <text x="68" y="174" text-anchor="start" fill="#93a4b8" font-size="9">00</text><text x="136.5" y="174" text-anchor="middle" fill="#93a4b8" font-size="9">06</text><text x="205" y="174" text-anchor="middle" fill="#93a4b8" font-size="9">12</text><text x="273.5" y="174" text-anchor="middle" fill="#93a4b8" font-size="9">18</text><text x="342" y="174" text-anchor="end" fill="#93a4b8" font-size="9">24</text>
+      <text x="205" y="185" text-anchor="middle" fill="#64748b" font-size="8">hour</text>
+      <line x1="205" y1="20" x2="205" y2="152" stroke="#F8FAFC" stroke-width="1.4" stroke-dasharray="3 3"></line>
+    </svg>
+  </div>
+               <!-- LEG-POS (, the author: "the trend tab, the graph we
+                    were fixing needs a legend"). It HAD one - it was two strips
+                    further down, so the reader met the tariff strip and the
+                    solar strip before reaching the key to the chart above them.
+                    Moved directly under the chart it explains. -->
+               <div id="cockpit-trends-legend" class="cockpit-mini-legend"><span><i class="" style="background:#22C55E;--legend-colour:#22C55E"></i>Rooftop</span><span><i class="" style="background:#FBBF24;--legend-colour:#FBBF24"></i>Solar farm</span><span><i class="" style="background:#0EA5E9;--legend-colour:#0EA5E9"></i>Carport PV</span><span><i class="" style="background:#2DD4BF;--legend-colour:#2DD4BF"></i>Canal-top PV</span><span><i class="" style="background:#84CC16;--legend-colour:#84CC16"></i>Biomass</span><span><i class="" style="background:#F97316;--legend-colour:#F97316"></i>WTE</span><span><i class="" style="background:#14B8A6;--legend-colour:#14B8A6"></i>Biogas</span><span><i class="" style="background:#F59E0B;--legend-colour:#F59E0B"></i>Curtailment</span><span><i class="" style="background:#60A5FA;--legend-colour:#60A5FA"></i>Solar hot water</span><span><i class="" style="background:#FBBF24;--legend-colour:#FBBF24"></i>Green open access</span><span><i class="" style="background:#60A5FA;--legend-colour:#60A5FA"></i>Thermal</span><span><i class="" style="background:#A855F7;--legend-colour:#A855F7"></i>Battery</span><span><i class="" style="background:#06B6D4;--legend-colour:#06B6D4"></i>V2G</span><span><i class="" style="background:#EF4444;--legend-colour:#EF4444"></i>Grid</span><span title="Demand actually served."><i class="line" style="background:#F8FAFC;--legend-colour:#F8FAFC"></i>Served demand</span><span title="Demand before shifting. Absent when the two are the same."><i class="line dashed" style="background:rgba(248,250,252,0.60);--legend-colour:rgba(248,250,252,0.60)"></i>Demand before DSR</span></div>
+               <div id="cockpit-tariff-strip" class="cockpit-tariff-strip"><span class="tariff-band band-off_peak" style="flex:2" title="Off-peak"></span><span class="tariff-band band-off_peak" style="flex:2" title="Off-peak"></span><span class="tariff-band band-off_peak" style="flex:2" title="Off-peak"></span><span class="tariff-band band-shoulder" style="flex:2" title="Shoulder"></span><span class="tariff-band band-solar" style="flex:2" title="Solar"></span><span class="tariff-band band-solar" style="flex:2" title="Solar"></span><span class="tariff-band band-solar" style="flex:2" title="Solar"></span><span class="tariff-band band-solar" style="flex:2" title="Solar"></span><span class="tariff-band band-shoulder" style="flex:2" title="Shoulder"></span><span class="tariff-band band-peak" style="flex:2" title="Peak"></span><span class="tariff-band band-super_peak" style="flex:2" title="Super peak"></span><span class="tariff-band band-off_peak" style="flex:2" title="Off-peak"></span><i class="tariff-cursor" style="left:50%"></i></div>
+               <div id="cockpit-solar-strip" class="cockpit-solar-strip">
+    <div class="solar-strip-header">
+      <span>Solar by month</span>
+      <strong>Jan 939 / Apr 1859 MWh/day</strong>
+    </div>
+    <div class="solar-strip-bars" aria-label="Solar generation MWh per day by month">
+      <em class="solar-strip-monsoon">monsoon</em>
+      
+      <span class="solar-strip-bar" data-cockpit-tooltip="Jan: 939 MWh/day solar generation">
+        <i style="height:39.2px"></i>
+        <b>Jan</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Feb: 1413 MWh/day solar generation">
+        <i style="height:49.9px"></i>
+        <b>Feb</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Mar: 1722 MWh/day solar generation">
+        <i style="height:56.9px"></i>
+        <b>Mar</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Apr: 1859 MWh/day solar generation">
+        <i style="height:60.0px"></i>
+        <b>Apr</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="May: 1765 MWh/day solar generation">
+        <i style="height:57.9px"></i>
+        <b>May</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Jun: 1584 MWh/day solar generation">
+        <i style="height:53.8px"></i>
+        <b>Jun</b>
+      </span>
+    
+      <span class="solar-strip-bar monsoon" data-cockpit-tooltip="Jul: 1346 MWh/day solar generation">
+        <i style="height:48.4px"></i>
+        <b>Jul</b>
+      </span>
+    
+      <span class="solar-strip-bar active monsoon" data-cockpit-tooltip="Aug: 1435 MWh/day solar generation">
+        <i style="height:50.4px"></i>
+        <b>Aug</b>
+      </span>
+    
+      <span class="solar-strip-bar monsoon" data-cockpit-tooltip="Sep: 1573 MWh/day solar generation">
+        <i style="height:53.6px"></i>
+        <b>Sep</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Oct: 1549 MWh/day solar generation">
+        <i style="height:53.0px"></i>
+        <b>Oct</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Nov: 1212 MWh/day solar generation">
+        <i style="height:45.4px"></i>
+        <b>Nov</b>
+      </span>
+    
+      <span class="solar-strip-bar" data-cockpit-tooltip="Dec: 1050 MWh/day solar generation">
+        <i style="height:41.7px"></i>
+        <b>Dec</b>
+      </span>
+    
+    </div>
+  </div>
+              <div id="cockpit-trends-note" class="cockpit-context-note">
+      Stack above the white line is exported, stored or curtailed.
+      Same y-axis in all three periods, so they can be compared.
+    </div>
+              <div id="cockpit-dsr-chip" class="cockpit-dsr-chip">
+    <span>Smart load peak-shift</span>
+    <strong>11.1 MW shaved (10%)</strong>
+    
+    <div class="cockpit-shift-chart" aria-label="Peak demand before and after DSR, V2G and battery shifting">
+      
+    <div class="cockpit-shift-row">
+      <span>Pre</span>
+      <i style="--shift-colour:#fb7185;--shift-width:100%"></i>
+      <strong>106.9 MW</strong>
+    </div>
+  
+      
+    <div class="cockpit-shift-row">
+      <span>Post</span>
+      <i style="--shift-colour:#2dd4bf;--shift-width:89.62192805759086%"></i>
+      <strong>95.8 MW</strong>
+    </div>
+  
+      <div class="cockpit-shift-meta">
+      </div>
+    </div>
+  
+    <small>
+      15.82 MWh shifted/day. DSR moves 13.08 MWh a day. EV charging moves 2.74 MWh a day.
+      V2G 565.1 kWh/day; battery 0 kWh/day. V2G wear 452 a day.
+    </small>
+  </div>
+              <div id="cockpit-biomass-chart" class="cockpit-chart cockpit-compact-chart">
+    <div class="cockpit-chart-title">
+      <span>Firm renewable dispatch</span>
+      <strong>291.7 MWh today</strong>
+    </div>
+    <div class="cockpit-chart-note">Dispatchable plant only. Solar is in the main chart above.</div>
+    <svg viewBox="0 0 360 140" role="img" aria-label="Biomass, biogas and WTE dispatch chart">
+      <line x1="66" y1="108" x2="342" y2="108" stroke="rgba(255,255,255,0.18)"></line>
+      <line x1="66" y1="22" x2="66" y2="108" stroke="rgba(255,255,255,0.12)"></line>
+      <text x="59" y="25" text-anchor="end" fill="#93a4b8" font-size="8.5">27.0 MWh</text>
+      <text x="59" y="68" text-anchor="end" fill="#93a4b8" font-size="8.5">13.5 MWh</text>
+      <text x="59" y="111" text-anchor="end" fill="#93a4b8" font-size="8.5">0</text>
+      <text x="66" y="14" fill="#93a4b8" font-size="8.5">slice energy</text>
+      <path d="M 66 22 H 89 V 22 H 112 V 22 H 135 V 22 H 158 V 108 H 181 V 108 H 204 V 108 H 227 V 108 H 250 V 22 H 273 V 22 H 296 V 22 H 319 V 22 H 342" fill="none" stroke="#84CC16" stroke-width="2.6" stroke-linejoin="miter" data-cockpit-tooltip="Biomass CHP: 216.0 MWh today. Step trace is constant within each 2-hour slice."></path>
+      <path d="M 66 100.83333333333333 H 89 V 100.83333333333333 H 112 V 100.83333333333333 H 135 V 100.83333333333333 H 158 V 100.83333333333333 H 181 V 100.83333333333333 H 204 V 100.83333333333333 H 227 V 100.83333333333333 H 250 V 100.83333333333333 H 273 V 100.83333333333333 H 296 V 100.83333333333333 H 319 V 100.83333333333333 H 342" fill="none" stroke="#14B8A6" stroke-width="2" stroke-linejoin="miter" data-cockpit-tooltip="Biogas: 27.0 MWh today. Step trace is constant within each 2-hour slice."></path>
+      <path d="M 66 95.08230452674897 H 89 V 95.08230452674897 H 112 V 95.08230452674897 H 135 V 95.08230452674897 H 158 V 95.08230452674897 H 181 V 95.08230452674897 H 204 V 95.08230452674897 H 227 V 95.08230452674897 H 250 V 95.08230452674897 H 273 V 95.08230452674897 H 296 V 95.08230452674897 H 319 V 95.08230452674897 H 342" fill="none" stroke="#F97316" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="4 4" data-cockpit-tooltip="Waste-to-energy: 48.7 MWh today. Step trace is constant within each 2-hour slice."></path>
+      
+      <line x1="204" y1="22" x2="204" y2="108" stroke="#F8FAFC" stroke-width="1.2" stroke-dasharray="3 3" data-cockpit-tooltip="Selected time marker from the top sun/time slider."></line>
+      <text x="66" y="125" text-anchor="start" fill="#93a4b8" font-size="8.5">00</text><text x="204" y="125" text-anchor="middle" fill="#93a4b8" font-size="8.5">12</text><text x="342" y="125" text-anchor="end" fill="#93a4b8" font-size="8.5">24</text>
+      <text x="204" y="135" text-anchor="middle" fill="#64748b" font-size="8">hour</text>
+    </svg>
+    <div class="cockpit-mini-legend cockpit-firm-legend" aria-label="Firm renewable dispatch legend">
+      <span><i style="--legend-colour:#84CC16"></i>Biomass</span>
+      <span><i style="--legend-colour:#14B8A6"></i>Biogas</span>
+      <span><i class="dashed" style="--legend-colour:#F97316"></i>WTE</span>
+      <span><i class="vertical"></i>Selected time</span>
+    </div>
+  </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="trading" aria-label="Energy trading">
+              <div class="cockpit-price-grid">
+                <div>
+                  <span>Buy now</span>
+                  <strong id="cockpit-buy-price">4.80 INR/kWh</strong>
+                </div>
+                <div>
+                  <span>Sell now</span>
+                  <strong id="cockpit-sell-price">3.00 INR/kWh</strong>
+                </div>
+              </div>
+              <div id="cockpit-trading-chart" class="cockpit-chart cockpit-line-chart">
+    <svg viewBox="0 0 360 154" role="img" aria-label="24 hour buy and sell price chart">
+      
+    <g>
+      <line x1="44" y1="122" x2="342" y2="122" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="41" y="125" text-anchor="end" fill="#93a4b8" font-size="9">0.0</text>
+    </g>
+  
+    <g>
+      <line x1="44" y1="69" x2="342" y2="69" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="41" y="72" text-anchor="end" fill="#93a4b8" font-size="9">4.8</text>
+    </g>
+  
+    <g>
+      <line x1="44" y1="16" x2="342" y2="16" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="41" y="19" text-anchor="end" fill="#93a4b8" font-size="9">9.5</text>
+    </g>
+  
+      <line x1="48" y1="122" x2="342" y2="122" stroke="rgba(255,255,255,0.20)"></line>
+      <line x1="48" y1="16" x2="48" y2="122" stroke="rgba(255,255,255,0.16)"></line>
+      <polyline points="48,61.747368421052634 74.72727272727272,61.747368421052634 101.45454545454545,61.747368421052634 128.1818181818182,55.05263157894737 154.9090909090909,68.44210526315788 181.63636363636363,68.44210526315788 208.36363636363637,68.44210526315788 235.0909090909091,68.44210526315788 261.8181818181818,55.05263157894737 288.5454545454545,32.736842105263165 315.27272727272725,16 342,61.747368421052634" fill="none" stroke="#EF4444" stroke-width="2.4" data-cockpit-tooltip="Buy price: grid import tariff in INR/kWh."></polyline>
+      <polyline points="48,88.52631578947368 74.72727272727272,88.52631578947368 101.45454545454545,88.52631578947368 128.1818181818182,88.52631578947368 154.9090909090909,88.52631578947368 181.63636363636363,88.52631578947368 208.36363636363637,88.52631578947368 235.0909090909091,88.52631578947368 261.8181818181818,88.52631578947368 288.5454545454545,88.52631578947368 315.27272727272725,88.52631578947368 342,88.52631578947368" fill="none" stroke="#22C55E" stroke-width="2.4" data-cockpit-tooltip="Sell price: export tariff in INR/kWh."></polyline>
+      <polyline points="48,75.13684210526316 74.72727272727272,75.13684210526316 101.45454545454545,75.13684210526316 128.1818181818182,71.78947368421052 154.9090909090909,78.48421052631579 181.63636363636363,78.48421052631579 208.36363636363637,78.48421052631579 235.0909090909091,78.48421052631579 261.8181818181818,71.78947368421052 288.5454545454545,60.63157894736842 315.27272727272725,52.263157894736835 342,75.13684210526316" fill="none" stroke="#06B6D4" stroke-width="1.6" stroke-dasharray="4 4" data-cockpit-tooltip="P2P guide: mid-market reference between buy and sell prices."></polyline>
+      <line x1="195" y1="16" x2="195" y2="122" stroke="#F8FAFC" stroke-width="1.2" stroke-dasharray="3 3" data-cockpit-tooltip="Selected time marker from the top sun/time slider."></line>
+      <text x="48" y="11" fill="#93a4b8" font-size="9">INR/kWh</text>
+      <text x="48" y="141" text-anchor="start" fill="#93a4b8" font-size="9">00</text><text x="121.5" y="141" text-anchor="middle" fill="#93a4b8" font-size="9">06</text><text x="195" y="141" text-anchor="middle" fill="#93a4b8" font-size="9">12</text><text x="268.5" y="141" text-anchor="middle" fill="#93a4b8" font-size="9">18</text><text x="342" y="141" text-anchor="end" fill="#93a4b8" font-size="9">24</text>
+      <text x="195" y="151" text-anchor="middle" fill="#64748b" font-size="8">hour</text>
+    </svg>
+  </div>
+              <div id="cockpit-trading-legend" class="cockpit-mini-legend"><span title="What the district pays for grid imports."><i class="" style="background:#EF4444;--legend-colour:#EF4444"></i>Buy price</span><span title="What exported power earns."><i class="" style="background:#22C55E;--legend-colour:#22C55E"></i>Sell price</span><span title="Mid-market reference between buy and sell prices."><i class="" style="background:#06B6D4;--legend-colour:#06B6D4"></i>P2P guide</span><span title="White dotted line follows the top sun/time slider."><i class="vertical" style="background:#F8FAFC;--legend-colour:#F8FAFC"></i>Selected time</span></div>
+              <div class="cockpit-metric-card cockpit-tariff-card">
+                <div class="cockpit-section-head">
+                  <div>
+                    <span>Daily tariff</span>
+                    <strong id="cockpit-tariff-day-label">Aug weekday - 2030 base year</strong>
+                  </div>
+                </div>
+                <div id="cockpit-tariff-chart" class="cockpit-chart cockpit-tariff-chart">
+    <svg viewBox="0 0 360 174" role="img" aria-label="Daily tariff curve comparing fixed ToU and Agile IEX">
+      <rect x="168.16666666666669" y="18" width="74.49999999999997" height="124" fill="rgba(251,191,36,0.07)" data-cockpit-tooltip="Midday PV export trough: Agile prices are intentionally low when solar is abundant."></rect>
+      
+    <g>
+      <line x1="40" y1="142" x2="342" y2="142" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="37" y="145" text-anchor="end" fill="#93a4b8" font-size="9">0.0</text>
+    </g>
+  
+    <g>
+      <line x1="40" y1="80" x2="342" y2="80" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="37" y="83" text-anchor="end" fill="#93a4b8" font-size="9">5.5</text>
+    </g>
+  
+    <g>
+      <line x1="40" y1="18" x2="342" y2="18" stroke="rgba(255,255,255,0.08)"></line>
+      <text x="37" y="21" text-anchor="end" fill="#93a4b8" font-size="9">11.0</text>
+    </g>
+  
+      <line x1="44" y1="142" x2="342" y2="142" stroke="rgba(255,255,255,0.20)"></line>
+      <line x1="44" y1="18" x2="44" y2="142" stroke="rgba(255,255,255,0.16)"></line>
+      <path d="M 44 81.12727272727273 H 56.416666666666664 V 81.12727272727273 H 68.83333333333333 V 81.12727272727273 H 81.25 V 81.12727272727273 H 93.66666666666666 V 81.12727272727273 H 106.08333333333334 V 81.12727272727273 H 118.5 V 74.36363636363637 H 130.91666666666669 V 74.36363636363637 H 143.33333333333331 V 87.89090909090909 H 155.75 V 87.89090909090909 H 168.16666666666669 V 87.89090909090909 H 180.58333333333331 V 87.89090909090909 H 193 V 87.89090909090909 H 205.41666666666666 V 87.89090909090909 H 217.83333333333334 V 87.89090909090909 H 230.25 V 87.89090909090909 H 242.66666666666666 V 74.36363636363637 H 255.08333333333334 V 74.36363636363637 H 267.5 V 51.81818181818181 H 279.91666666666663 V 51.81818181818181 H 292.33333333333337 V 34.90909090909091 H 304.75 V 34.90909090909091 H 317.16666666666663 V 81.12727272727273 H 329.58333333333337 V 81.12727272727273 H 342" fill="none" stroke="#F97316" stroke-width="3" stroke-linejoin="miter" data-cockpit-tooltip="Fixed-ToU buy curve. Mean: 5.86 INR/kWh."></path>
+      <path d="M 44 108.18181818181819 H 56.416666666666664 V 108.18181818181819 H 68.83333333333333 V 108.18181818181819 H 81.25 V 108.18181818181819 H 93.66666666666666 V 108.18181818181819 H 106.08333333333334 V 108.18181818181819 H 118.5 V 108.18181818181819 H 130.91666666666669 V 108.18181818181819 H 143.33333333333331 V 108.18181818181819 H 155.75 V 108.18181818181819 H 168.16666666666669 V 108.18181818181819 H 180.58333333333331 V 108.18181818181819 H 193 V 108.18181818181819 H 205.41666666666666 V 108.18181818181819 H 217.83333333333334 V 108.18181818181819 H 230.25 V 108.18181818181819 H 242.66666666666666 V 108.18181818181819 H 255.08333333333334 V 108.18181818181819 H 267.5 V 108.18181818181819 H 279.91666666666663 V 108.18181818181819 H 292.33333333333337 V 108.18181818181819 H 304.75 V 108.18181818181819 H 317.16666666666663 V 108.18181818181819 H 329.58333333333337 V 108.18181818181819 H 342" fill="none" stroke="#FBBF24" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="5 4" opacity="0.95" data-cockpit-tooltip="Fixed-ToU sell curve. Mean: 3.00 INR/kWh."></path>
+      <polyline points="50.208333333333336,76.52576380070217 62.625,76.52576380070217 75.04166666666667,79.2678269963397 87.45833333333334,79.2678269963397 99.875,76.52576380070217 112.29166666666666,76.52576380070217 124.70833333333333,83.65512810935982 137.125,83.65512810935982 149.54166666666669,89.13925450063493 161.95833333333331,89.13925450063493 174.375,103.94639575707775 186.79166666666669,103.94639575707775 199.20833333333334,107.78528423097035 211.625,107.78528423097035 224.04166666666666,103.94639575707775 236.45833333333334,103.94639575707775 248.875,82.00989019197729 261.29166666666663,82.00989019197729 273.70833333333337,40.87894225741391 286.125,40.87894225741391 298.54166666666663,28.813864196608648 310.95833333333337,28.813864196608648 323.375,69.39639949204452 335.79166666666663,69.39639949204452" fill="none" stroke="#38BDF8" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" data-cockpit-tooltip="Agile IEX buy curve. Mean: 5.63 INR/kWh."></polyline>
+      <polyline points="50.208333333333336,90.99762456114141 62.625,90.99762456114141 75.04166666666667,93.42630910584896 87.45833333333334,93.42630910584896 99.875,90.99762456114141 112.29166666666666,90.99762456114141 124.70833333333333,97.31220437738104 137.125,97.31220437738104 149.54166666666669,102.16957346679615 161.95833333333331,102.16957346679615 174.375,115.28447000821693 186.79166666666669,115.28447000821693 199.20833333333334,118.6846283708075 211.625,118.6846283708075 224.04166666666666,115.28447000821693 236.45833333333334,115.28447000821693 248.875,95.85499365055651 261.29166666666663,95.85499365055651 273.70833333333337,59.424725479943206 286.125,59.424725479943206 298.54166666666663,48.73851348323001 310.95833333333337,48.73851348323001 323.375,84.68304474490176 335.79166666666663,84.68304474490176" fill="none" stroke="#2DD4BF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 4" opacity="0.74" data-cockpit-tooltip="Agile IEX sell curve. Mean: 4.37 INR/kWh."></polyline>
+      <line x1="193" y1="18" x2="193" y2="142" stroke="#F8FAFC" stroke-width="1.2" stroke-dasharray="3 3" data-cockpit-tooltip="Selected time marker from the top sun/time slider."></line>
+      <text x="44" y="12" fill="#93a4b8" font-size="9">INR/kWh</text>
+      <text x="205.41666666666669" y="29" text-anchor="middle" fill="rgba(253,230,138,0.72)" font-size="8">midday trough</text>
+      <text x="44" y="161" text-anchor="start" fill="#93a4b8" font-size="9">00</text><text x="118.5" y="161" text-anchor="middle" fill="#93a4b8" font-size="9">06</text><text x="193" y="161" text-anchor="middle" fill="#93a4b8" font-size="9">12</text><text x="267.5" y="161" text-anchor="middle" fill="#93a4b8" font-size="9">18</text><text x="342" y="161" text-anchor="end" fill="#93a4b8" font-size="9">24</text>
+      <text x="193" y="171" text-anchor="middle" fill="#64748b" font-size="8">hour</text>
+    </svg>
+  </div>
+                <div id="cockpit-tariff-legend" class="cockpit-mini-legend"><span title="Fixed-ToU import price."><i class="" style="background:#F97316;--legend-colour:#F97316"></i>Fixed buy</span><span title="Fixed-ToU export price."><i class="dashed" style="background:#FBBF24;--legend-colour:#FBBF24"></i>Fixed sell</span><span title="IEX Agile import price."><i class="" style="background:#38BDF8;--legend-colour:#38BDF8"></i>Agile buy</span><span title="IEX Agile export price."><i class="dashed" style="background:#2DD4BF;--legend-colour:#2DD4BF"></i>Agile sell</span><span title="White dotted line follows the top sun/time slider."><i class="vertical" style="background:#F8FAFC;--legend-colour:#F8FAFC"></i>Selected time</span></div>
+                <small id="cockpit-tariff-note">Fixed ToU. Mean import: fixed 5.55 INR/kWh, Agile 5.86 INR/kWh.</small>
+              </div>
+              <div class="cockpit-metric-card">
+                <span>Net trade today</span>
+                <strong id="cockpit-trade-net">-INR 32.84 L</strong>
+                <small id="cockpit-trade-detail">12.23 L earned / 45.07 L spent today; export window breaks tariff ties using actual PV surplus.</small>
+              </div>
+              <div class="cockpit-hints">
+                <div>
+                  <span>Best charge window</span>
+                  <strong id="cockpit-best-charge">08:00-10:00</strong>
+                </div>
+                <div>
+                  <span>Best export window</span>
+                  <strong id="cockpit-best-export">10:00-12:00</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="impact" aria-label="Carbon and equity impact">
+              <div class="cockpit-impact-grid">
+                <div>
+                  <span>CO2 saved today</span>
+                  <strong id="cockpit-co2-today">756 t</strong>
+                </div>
+                <div>
+                  <span>Annual saved vs BAU</span>
+                  <strong id="cockpit-co2-year">192,945 t</strong>
+                </div>
+                <div>
+                  <span>Annual demand</span>
+                  <strong id="cockpit-annual-demand">527.60 GWh</strong>
+                  <small id="cockpit-demand-detail">Selected scenario demand; BAU reference 530.95 GWh.</small>
+                </div>
+                <div>
+                  <span>Annual cost</span>
+                  <strong id="cockpit-cost-year">₹1,733.4 M / yr</strong>
+                  <small id="cockpit-cost-detail" title="BAU ₹3,643.5 M / 311.12 kt.">vs BAU -52.4% cost / -62.0% CO2.</small>
+                </div>
+                <div title="25-year total = the multi-period LP lifetime objective (2030/2042/2055 weighted 8/9/8 yr, real terms; retail tariff escalation 0.0 real per PSERC-vs-CPI, economics.yaml).">
+                  <span>25-year cost</span>
+                  <strong id="cockpit-lifetime-cost">₹62.55 B over 25 yr</strong>
+                  <small id="cockpit-lifetime-detail">active dispatch; annual x 36.1; price sweep shown below</small>
+                </div>
+                <div>
+                  <span>Annual emissions</span>
+                  <strong id="cockpit-annual-emissions">118.17 kt</strong>
+                  <small id="cockpit-price-scenario-detail" title="Annual demand, cost, emissions and installed capacity read from dispatch_results.json period_breakdown.">2030 base year period_breakdown</small>
+                </div>
+                <div>
+                  <span>Net cost</span>
+                  <strong id="cockpit-net-cost">Rs 3.29/kWh</strong>
+                  <small id="cockpit-net-cost-detail">2030 base year net system cost.</small>
+                </div>
+                <div>
+                  <span>Renewable</span>
+                  <strong id="cockpit-renewable-share">79.3%</strong>
+                  <small id="cockpit-renewable-detail" title="metric_notes.renewable_share: purchased green open-access energy (green_purchase_kwh, zero-EF) is NOT counted, so the share understates clean supply post-B21; quote alongside green_purchase_kwh (F36).">25-y scenario share; self-gen only; excludes 21.4 GWh purchased green OA (F36).</small>
+                </div>
+                <div id="cockpit-stage-d-pill" class="cockpit-stage-d-pill">
+                  <span>Stage D mode</span>
+                  <strong>Per-cell</strong>
+                  <small>889 cells; 659 feeders; 57 transformers.</small>
+                </div>
+                <div id="cockpit-ppa-pill" class="cockpit-ppa-pill">
+                  <span>PPA mode</span>
+                  <strong>DC-PPA</strong>
+                  <small title="Data-centre PPA scenarios read from dispatch_results.json: dc_ppa_offtake_kwh and dc_ppa_revenue_inr.">standard 95.8 GWh / ₹549.9 M revenue (+0.0% cost, +0.0% CO2); green 95.8 GWh / ₹549.9 M revenue (+0.0% cost, +0.0% CO2). F5: green-PPA raises emissions.</small>
+                </div>
+              </div>
+              <div class="cockpit-metric-card">
+                <span>Source mix today</span>
+                <div id="cockpit-source-stack" class="cockpit-source-stack"><span style="width:18.73313969667109%;background:#22C55E" title="Rooftop 19%"></span><span style="width:38.69867875504263%;background:#FBBF24" title="Farm 39%"></span><span style="width:8.647739460760118%;background:#84CC16" title="Biomass 9%"></span><span style="width:2%;background:#F97316" title="WTE 2%"></span><span style="width:2%;background:#14B8A6" title="Biogas 1%"></span><span style="width:2.584553095503843%;background:#60A5FA" title="Thermal 3%"></span><span style="width:2%;background:#06B6D4" title="V2G 0%"></span><span style="width:28.283885666944204%;background:#EF4444" title="Grid 28%"></span></div>
+                <small id="cockpit-source-label">Rooftop 19% / Farm 39% / Biomass 9% / WTE 2% / Biogas 1% / Thermal 3% / V2G 0% / Grid 28%</small>
+              </div>
+              <div class="cockpit-metric-card" hidden=""><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Stage C tech stack (2030 base year)</span>
+                <div id="cockpit-tech-stack" class="cockpit-stagec-stack">
+    <div class="active" style="--stagec:#22C55E">
+      <span>Rooftop PV</span>
+      <strong>116.89 MWp</strong>
+    </div>
+  
+    <div class="active" style="--stagec:#FBBF24">
+      <span>Solar farm</span>
+      <strong>241.46 MWp</strong>
+    </div>
+  
+    <div class="muted" style="--stagec:#2DD4BF">
+      <span>Carport PV</span>
+      <strong>0 kWp</strong>
+    </div>
+  
+    <div class="muted" style="--stagec:#A855F7">
+      <span>Battery</span>
+      <strong>0 kWh</strong>
+    </div>
+  
+    <div class="active" style="--stagec:#06B6D4">
+      <span>V2G units</span>
+      <strong>612</strong>
+    </div>
+  
+    <div class="muted" style="--stagec:#FBBF24">
+      <span>Tracked PV</span>
+      <strong>Off</strong>
+    </div>
+  
+    <div class="active" style="--stagec:#84CC16">
+      <span>Biomass CHP</span>
+      <strong>13.5 MW</strong>
+    </div>
+  
+    <div class="active" style="--stagec:#14B8A6">
+      <span>Biogas</span>
+      <strong>1.1 MW</strong>
+    </div>
+  
+    <div class="active" style="--stagec:#F97316">
+      <span>WTE</span>
+      <strong>2.0 MW</strong>
+    </div>
+  
+    <div class="active" style="--stagec:#60A5FA">
+      <span>Thermal store</span>
+      <strong>80.7 MWh</strong>
+    </div>
+  
+    <div class="muted" style="--stagec:#2DD4BF">
+      <span>Canal-top PV</span>
+      <strong>0 kWp</strong>
+    </div>
+  
+    <div class="stagec-era-note">
+      <span>Battery era</span>
+      <strong>2030 0 kWh -&gt; 2042 130.9 MWh -&gt; 2055 389.8 MWh</strong>
+      <small>Active period storage: none. Storage appears as learning-curve costs fall.</small>
+    </div>
+  </div>
+              </div>
+              <div class="cockpit-metric-card" hidden=""><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Realism checks</span>
+                <div id="cockpit-realism-checks" class="cockpit-realism-checks">
+    <div class="realism-check pass" title="Confirms the realism checks and headline are derived from the current dispatch export.">
+      <i></i>
+      <div>
+        <span>Data source</span>
+        <strong>dispatch_results.json</strong>
+        <small>Scenario full_stack alpha 0.00; no fixture headline.</small>
+      </div>
+    </div>
+  
+    <div class="realism-check pass" title="Same effective-load check as scripts/dispatch_realism_audit.py: demand + dsr_add - dsr_reduce + ev_shift_in - ev_shift_out.">
+      <i></i>
+      <div>
+        <span>DSR spikes</span>
+        <strong>0 &gt;1.8x</strong>
+        <small>Effective load has no audit-threshold spikes after DSR and managed EV shifting.</small>
+      </div>
+    </div>
+  
+    <div class="realism-check pass" title="June 1584.15 MWh per weekday; October 1548.85 MWh.">
+      <i></i>
+      <div>
+        <span>PV seasonality</span>
+        <strong>Oct/Jun 0.98</strong>
+        <small>Current weekday ratio is 0.978 from dispatch_results.json.</small>
+      </div>
+    </div>
+  
+    <div class="realism-check pass" title="Monthly biomass generation is read from the dispatch by_slice map.">
+      <i></i>
+      <div>
+        <span>Biomass shape</span>
+        <strong>seasonal</strong>
+        <small>APR 6.41 GWh/mo; DEC 10.04 GWh/mo.</small>
+      </div>
+    </div>
+  
+    <div class="realism-check pass" title="Reads peak/super_peak tariff_band values from dispatch_results.json slices.">
+      <i></i>
+      <div>
+        <span>Seasonal ToD</span>
+        <strong>jun-jul-aug-sep</strong>
+        <small>Evening peak bands appear only in Jun-Sep.</small>
+      </div>
+    </div>
+  </div>
+              </div>
+              <div class="cockpit-metric-card">
+                <span>Carbon-cost Pareto</span>
+                <div id="cockpit-pareto-chart" class="cockpit-pareto-chart">
+    <svg viewBox="0 0 320 150" role="img" aria-label="Pareto frontier: cumulative carbon on the horizontal axis, lifetime cost on the vertical">
+      <line x1="20" y1="130" x2="300" y2="130" stroke="rgba(255,255,255,0.18)"></line>
+      <line x1="20" y1="20" x2="20" y2="130" stroke="rgba(255,255,255,0.18)"></line>
+      <polyline points="300,130 297.94732627492175,129.99475078121395 292.93141958171435,129.96836066258012 289.67368106880906,129.93197900468564 278.4783947601649,129.73764198019404 273.41992590674465,129.59626644702766 264.85497493847413,129.23809301147148 237.2527791089471,127.33410599657306 195.9518685070074,123.37862338239378 131.8364849754759,109.41117414576256 20,20" fill="none" stroke="#38BDF8" stroke-width="2.2"></polyline>
+      
+      <circle cx="300" cy="130" r="5" fill="#F8FAFC">
+        <title>alpha 0.00: 62.55 B over the horizon, 2,155,845 t over the horizon</title>
+      </circle>
+    
+      <circle cx="297.94732627492175" cy="129.99475078121395" r="3.2" fill="#38BDF8">
+        <title>alpha 0.10: 62.56 B over the horizon, 2,144,780 t over the horizon</title>
+      </circle>
+    
+      <circle cx="292.93141958171435" cy="129.96836066258012" r="3.2" fill="#38BDF8">
+        <title>alpha 0.20: 62.57 B over the horizon, 2,117,741 t over the horizon</title>
+      </circle>
+    
+      <circle cx="289.67368106880906" cy="129.93197900468564" r="3.2" fill="#38BDF8">
+        <title>alpha 0.30: 62.58 B over the horizon, 2,100,179 t over the horizon</title>
+      </circle>
+    
+      <circle cx="278.4783947601649" cy="129.73764198019404" r="3.2" fill="#38BDF8">
+        <title>alpha 0.40: 62.66 B over the horizon, 2,039,829 t over the horizon</title>
+      </circle>
+    
+      <circle cx="273.41992590674465" cy="129.59626644702766" r="3.2" fill="#38BDF8">
+        <title>alpha 0.50: 62.72 B over the horizon, 2,012,561 t over the horizon</title>
+      </circle>
+    
+      <circle cx="264.85497493847413" cy="129.23809301147148" r="3.2" fill="#38BDF8">
+        <title>alpha 0.60: 62.88 B over the horizon, 1,966,390 t over the horizon</title>
+      </circle>
+    
+      <circle cx="237.2527791089471" cy="127.33410599657306" r="3.2" fill="#38BDF8">
+        <title>alpha 0.70: 63.68 B over the horizon, 1,817,596 t over the horizon</title>
+      </circle>
+    
+      <circle cx="195.9518685070074" cy="123.37862338239378" r="3.2" fill="#38BDF8">
+        <title>alpha 0.80: 65.35 B over the horizon, 1,594,956 t over the horizon</title>
+      </circle>
+    
+      <circle cx="131.8364849754759" cy="109.41117414576256" r="3.2" fill="#38BDF8">
+        <title>alpha 0.90: 71.25 B over the horizon, 1,249,331 t over the horizon</title>
+      </circle>
+    
+      <circle cx="20" cy="20" r="3.2" fill="#38BDF8">
+        <title>alpha 1.00: 109.01 B over the horizon, 646,457 t over the horizon</title>
+      </circle>
+    
+      <!-- PARETO-2.
+           WORSE THAN MISSING - they were WRONG. The axes were swapped
+           earlier the same night and these three labels were left behind,
+           so the horizontal axis was captioned "lower cost / higher cost"
+           while it plots carbon. Proper titles on both axes now, with the
+           direction stated once. -->
+      <text x="160" y="147" fill="#cbd5e1" font-size="9.5" text-anchor="middle">Cumulative CO2, low to high</text>
+      <text transform="translate(9,75) rotate(-90)" fill="#cbd5e1" font-size="9.5" text-anchor="middle">Lifetime cost, low to high</text>
+    </svg>
+  </div>
+                <small id="cockpit-pareto-label">Carbon across, cost up. Cheapest 62.55 B over the horizon; lowest carbon 646,457 t over the horizon at alpha 1.00.</small>
+              </div>
+              <div class="cockpit-metric-card" hidden=""><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Price trajectory spread</span>
+                <div id="cockpit-price-scenario-chart" class="cockpit-pareto-chart">
+    <svg viewBox="0 0 360 148" role="img" aria-label="Annual emissions by price trajectory">
+      <text x="112" y="10" fill="#93a4b8" font-size="9">annual emissions</text>
+      
+      <g data-cockpit-tooltip="BAU continued
+Annual emissions: 98,351 t
+Lifetime cost: 57.90 B INR
+Emissions delta vs NEP: +34.0%
+IEA STEPS grid EF proxy; 2.0%/yr real tariff escalation.">
+        <text x="104" y="28" text-anchor="end" fill="#93a4b8" font-size="9">BAU continued</text>
+        <rect x="112" y="18" width="188.34670340241" height="13" rx="2" fill="#64748b" opacity="0.58"></rect>
+        <text x="306.34670340240996" y="28" fill="#93a4b8" font-size="9">98,351 t</text>
+      </g>
+    
+      <g data-cockpit-tooltip="NEP policy push
+Annual emissions: 73,414 t
+Lifetime cost: 46.72 B INR
+Emissions delta vs NEP: +0.0%
+CEA NEP 2022-32 plus TERI 2050 Low-Carbon endpoint.">
+        <text x="104" y="59" text-anchor="end" fill="#f8fafc" font-size="9">NEP policy push</text>
+        <rect x="112" y="49" width="140.59103632988067" height="13" rx="2" fill="#38bdf8" opacity="0.95"></rect>
+        <text x="258.5910363298807" y="59" fill="#f8fafc" font-size="9">73,414 t</text>
+      </g>
+    
+      <g data-cockpit-tooltip="High renewables
+Annual emissions: 76,728 t
+Lifetime cost: 44.49 B INR
+Emissions delta vs NEP: +4.5%
+TERI No-Fossil plus CEEW 2050 net-zero trajectory.">
+        <text x="104" y="90" text-anchor="end" fill="#93a4b8" font-size="9">High renewables</text>
+        <rect x="112" y="80" width="146.9364361393148" height="13" rx="2" fill="#64748b" opacity="0.58"></rect>
+        <text x="264.93643613931476" y="90" fill="#93a4b8" font-size="9">76,728 t</text>
+      </g>
+    
+      <g data-cockpit-tooltip="Stress coal lock-in
+Annual emissions: 118,013 t
+Lifetime cost: 68.80 B INR
+Emissions delta vs NEP: +60.8%
+Climate Action Tracker current policies plus IEA WEO CPS.">
+        <text x="104" y="121" text-anchor="end" fill="#93a4b8" font-size="9">Stress coal lock-in</text>
+        <rect x="112" y="111" width="226" height="13" rx="2" fill="#64748b" opacity="0.58"></rect>
+        <text x="344" y="121" fill="#93a4b8" font-size="9">118,013 t</text>
+      </g>
+    
+    </svg>
+  </div>
+                <small>Bars read the pre-computed A21 sweep; dispatch is not re-solved in the browser.</small>
+              </div>
+              <div class="cockpit-metric-card" hidden=""><!-- IMPACT-1: hidden 2026-08-22 -->
+                <span>Equity placeholder</span>
+                <strong id="cockpit-equity">EWS bill-share pending Path 1</strong>
+                <small>Ownership tiers and income-linked discount rates land on the Python side.</small>
+              </div>
+            </section>
+
+            <section class="cockpit-page" data-cockpit-page="cells" aria-label="Selected cell energy drill-down">
+              <div id="cockpit-cell-empty" class="cockpit-empty">
+      <strong>No cell selected</strong>
+      <span>Click any 3D cell to open its drill-down here.</span>
+      <span>Suggested watchlist: high PV rooftops, high demand blocks, EWS access, solar farms.</span>
+    </div>
+              <div id="cockpit-cell-content" class="hidden">
+                <div class="cockpit-cell-head">
+                  <div>
+                    <span class="cockpit-kicker">Selected cell</span>
+                    <h3 id="cockpit-cell-title">Cell</h3>
+                  </div>
+                  <span id="cockpit-cell-tier" class="cockpit-status">Tier --</span>
+                </div>
+                <div id="cockpit-cell-stats" class="cockpit-cell-stats"></div>
+                <div id="cockpit-cell-chart" class="cockpit-chart cockpit-cell-chart"></div>
+                <div id="cockpit-ev-card" class="cockpit-metric-card cockpit-ev-card hidden"></div>
+                <!-- CELLS-1 (, the author: "from cells tab remove
+                     recommended upgrade"). It was a placeholder by its own
+                     admission. Hidden, not deleted - app.js writes to the id. -->
+                <div class="cockpit-metric-card" hidden="">
+                  <span>Recommended upgrade</span>
+                  <strong id="cockpit-cell-upgrade">--</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="cockpit-page active" data-cockpit-page="settings" aria-label="Cockpit settings">
+              <div class="cockpit-settings-list">
+                <label>
+                  <span>Show PV overlay</span>
+                  <input id="cockpit-setting-pv" type="checkbox">
+                </label>
+                <label>
+                  <span>Shading penalty</span>
+                  <input id="cockpit-setting-shading" type="checkbox">
+                </label>
+                <label>
+                  <span>PV deployment</span>
+                  <input id="cockpit-setting-pv-deployment" type="checkbox">
+                </label>
+                <label>
+                  <span>Electrical network</span>
+                  <input id="cockpit-setting-electrical" type="checkbox">
+                </label>
+                <label>
+                  <span>Building axis arrows</span>
+                  <input id="cockpit-setting-axis" type="checkbox">
+                </label>
+                <label>
+                  <span>PV panel markers</span>
+                  <input id="cockpit-setting-panels" type="checkbox" checked="">
+                </label>
+                <label>
+                  <span>Vegetation (trees + setbacks)</span>
+                  <input id="cockpit-setting-vegetation" type="checkbox" checked="">
+                </label>
+                <label>
+                  <span>Street trees</span>
+                  <input id="cockpit-setting-street-trees" type="checkbox" checked="">
+                </label>
+                <label>
+                  <span>Streetlight poles</span>
+                  <input id="cockpit-setting-streetlights" type="checkbox" checked="">
+                </label>
+                <label>
+                  <span>Local access lanes</span>
+                  <input id="cockpit-setting-local-streets" type="checkbox" checked="">
+                </label>
+                <label>
+                  <span>Greenway paths</span>
+                  <input id="cockpit-setting-greenway-paths" type="checkbox" checked="">
+                </label>
+                <label title="Class-true road cross-sections: carriageway + median with cycle tracks and footpaths each side (metadata.road_network.cross_section_m); the ROW remainder reads as verge. Also labels each road cell's pole count (xN).">
+                  <span>Road cross-sections</span>
+                  <input id="cockpit-setting-road-sections" type="checkbox" checked="">
+                </label>
+                <label title="Flat planning shadow from the current sun slider; it stays on the ground and does not climb walls. The Shade overlay remains the model PV-yield truth.">
+                  <span>Sun shadows</span>
+                  <input id="cockpit-setting-real-time-shadows" type="checkbox" checked="">
+                </label>
+                <label>
+                  <span>Placement flags</span>
+                  <input id="cockpit-setting-realism-flags" type="checkbox">
+                </label>
+                <label>
+                  <span>Carport sites</span>
+                  <input id="cockpit-setting-carport-sites" type="checkbox">
+                </label>
+                <label class="cockpit-select-setting">
+                  <span>Trajectory</span>
+                  <select id="cockpit-price-scenario"><option value="bau_continued" title="IEA STEPS grid EF proxy; 2.0%/yr real tariff escalation.">BAU continued</option><option value="nep_policy_push" title="CEA NEP 2022-32 plus TERI 2050 Low-Carbon endpoint.">NEP policy push</option><option value="high_renewables" title="TERI No-Fossil plus CEEW 2050 net-zero trajectory.">High renewables</option><option value="stress_coal_lock_in" title="Climate Action Tracker current policies plus IEA WEO CPS.">Stress coal lock-in</option></select>
+                </label>
+                <label>
+                  <span>Keep cockpit open</span>
+                  <input id="cockpit-setting-visible" type="checkbox" checked="">
+                </label>
+              <div id="cockpit-schema-hint" class="cockpit-schema-hint" role="status">Energy JSON schema v2.0 loaded: lifetime cost, DSR and canal-top PV fields active. 864 hourly slices aggregated into 144 two-hour chart bins.</div>
+                <button id="cockpit-reset" type="button">Reset cockpit</button>
+              </div>
+            </section>
+          </main>
+
+          <nav class="cockpit-tabs" aria-label="Cockpit tabs">
+            <button class="" type="button" data-cockpit-tab="live">Live</button>
+            <button type="button" data-cockpit-tab="trends" class="">Trends</button>
+            <button type="button" data-cockpit-tab="trading" class="">Trading</button>
+            <button type="button" data-cockpit-tab="impact" class="">Impact</button>
+            <button type="button" data-cockpit-tab="cells" class="">Cells</button>
+            <button type="button" data-cockpit-tab="settings" class="active">Settings</button>
+          </nav>
+        </div>
+      </aside>
+
+      <section id="layout-summary-panel" class="info-panel collapsed" aria-label="Layout summary">
+        <div class="info-panel-head">
+          <h2 id="layout-title">Planned Integrated (this thesis)</h2>
+          <button id="info-panel-toggle" class="panel-toggle" type="button" aria-controls="layout-summary-body" aria-expanded="false" title="Expand layout summary" aria-label="Expand layout summary">+</button>
+        </div>
+        <div id="layout-summary-body" class="info-panel-body">
+          <p id="layout-subtitle">25 km² georeferenced district centred on 30.6400, 76.8200.</p>
+          <dl class="stat-grid">
+            <div>
+              <dt>Cells</dt>
+              <dd id="stat-cells">2500</dd>
+            </div>
+            <div>
+              <dt>Features</dt>
+              <dd id="stat-features">6845</dd>
+            </div>
+            <div>
+              <dt>Built forms</dt>
+              <dd id="stat-built">2160</dd>
+            </div>
+            <div>
+              <dt id="stat-pv-label">PV 2030</dt>
+              <dd id="stat-pv" title="2030 installed PV from dispatch_results.json period_breakdown.">358.35 MWp</dd>
+            </div>
+            <div>
+              <dt>Road ROW</dt>
+              <dd id="stat-road-network" title="628 road cells; 2,976,100 m² road ROW; local lanes 628 edges.">628 / 11.9%</dd>
+            </div>
+            <div>
+              <dt>Walkability</dt>
+              <dd id="stat-walkability" title="Access 1.00; permeability 0.61; green loop 0.92.">0.87</dd>
+            </div>
+            <div>
+              <dt>Sun</dt>
+              <dd id="stat-sun">71 deg / 938 W/m2</dd>
+            </div>
+            <div>
+              <dt>Clear-sky PV</dt>
+              <dd id="stat-pv-now" title="Clear-sky geometric PV potential from the sun slider and local PV ceilings; dispatch PV is shown in the cockpit.">342.60 MWh</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="legend-panel" class="legend-panel collapsed" aria-label="Land-use legend">
+        <div class="legend-panel-head">
+          <h2>Land use</h2>
+          <button id="legend-panel-toggle" class="panel-toggle" type="button" aria-controls="legend-panel-body" aria-expanded="false" title="Expand land-use legend" aria-label="Expand land-use legend">+</button>
+        </div>
+        <div id="legend-panel-body" class="legend-panel-body">
+          <div id="legend-list"><div class="legend-row"><span class="swatch" style="background: rgb(232, 204, 163);"></span><span>Housing - EWS/LIG flats</span></div><div class="legend-row"><span class="swatch" style="background: rgb(214, 184, 141);"></span><span>Housing - MIG flats</span></div><div class="legend-row"><span class="swatch" style="background: rgb(194, 164, 122);"></span><span>Housing - HIG plotted kothi</span></div><div class="legend-row"><span class="swatch" style="background: rgb(152, 180, 204);"></span><span>School</span></div><div class="legend-row"><span class="swatch" style="background: rgb(168, 192, 210);"></span><span>Office</span></div><div class="legend-row"><span class="swatch" style="background: rgb(222, 180, 132);"></span><span>Shopping centre</span></div><div class="legend-row"><span class="swatch" style="background: rgb(218, 166, 134);"></span><span>Restaurant / food</span></div><div class="legend-row"><span class="swatch" style="background: rgb(200, 172, 180);"></span><span>Hotel / guesthouse</span></div><div class="legend-row"><span class="swatch" style="background: rgb(152, 198, 184);"></span><span>Healthcare</span></div><div class="legend-row"><span class="swatch" style="background: rgb(166, 170, 182);"></span><span>Light industry</span></div><div class="legend-row"><span class="swatch" style="background: rgb(150, 158, 174);"></span><span>Warehouse / cold storage</span></div><div class="legend-row"><span class="swatch" style="background: rgb(156, 170, 196);"></span><span>Public services</span></div><div class="legend-row"><span class="swatch" style="background: rgb(228, 208, 164);"></span><span>Religious</span></div><div class="legend-row"><span class="swatch" style="background: rgb(234, 188, 128);"></span><span>Retail high street</span></div><div class="legend-row"><span class="swatch" style="background: rgb(64, 116, 164);"></span><span>Blue space</span></div><div class="legend-row"><span class="swatch" style="background: rgb(108, 116, 128);"></span><span>Parking lot</span></div><div class="legend-row"><span class="swatch" style="background: rgb(124, 196, 112);"></span><span>Open space</span></div><div class="legend-row"><span class="swatch" style="background: rgb(200, 200, 200);"></span><span>Road</span></div><div class="legend-row"><span class="swatch" style="background: rgb(60, 88, 134);"></span><span>Solar farm</span></div><div class="legend-section-label">Road + paths</div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(70, 75, 76);"></span><span>Arterial road cells (291)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(92, 98, 98);"></span><span>Collector road cells (333)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(116, 126, 122);"></span><span>Local road cells (4)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgba(158, 162, 158, 0.4);"></span><span>Local access lanes (628)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgba(14, 74, 38, 0.965);"></span><span>Greenway paths (549)</span></div><div class="legend-section-label">Green + reserves</div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(40, 136, 207);"></span><span>Canal corridor (43)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(64, 150, 83);"></span><span>Community parks (86)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(72, 175, 95);"></span><span>Greenway open space (344)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(143, 158, 78);"></span><span>Agri belt (14)</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(178, 188, 188);"></span><span>Parking expansion reserve (16)</span></div><div class="legend-section-label">Street assets</div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(55, 135, 64);"></span><span>Street trees</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(56, 189, 248);"></span><span>Solar streetlight + panel</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(226, 232, 240);"></span><span>Grid streetlight</span></div><div class="legend-row"><span class="swatch street-asset-swatch" style="background: rgb(14, 165, 233);"></span><span>Parking-lot solar canopy (8.50 MWp)</span></div><div class="legend-section-label">Stage C plants</div><div class="legend-row plant-legend-row"><span class="swatch plant-swatch" style="background: rgb(233, 122, 60);"></span><span>Biomass CHP</span></div><div class="legend-row plant-legend-row"><span class="swatch plant-swatch" style="background: rgb(132, 204, 22);"></span><span>Biogas</span></div><div class="legend-row plant-legend-row"><span class="swatch plant-swatch" style="background: rgb(192, 57, 43);"></span><span>Waste-to-energy</span></div></div>
+        </div>
+      </section>
+
+      <!-- CARPORT-1 (, the author: "the PV on parking lot is high
+           rooftop? why?"). The legend named only rooftop bands and the farm,
+           so every other PV surface was read against a rooftop scale. It also
+           called the ramp "low/medium/high", which invited the separate
+           complaint that short buildings looked high: the ramp is kWp per
+           cell, so it tracks roof AREA, and a wide warehouse beats a narrow
+           tower. Bands are now labelled by what they measure, and each
+           non-roof technology carries its own key entry. -->
+      <section id="pv-overlay-legend" class="pv-overlay-legend hidden" aria-label="PV ceiling legend">
+        <h2>PV ceiling, kWp per cell</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-none"></span>
+          <span>No PV</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-low"></span>
+          <span>Rooftop, small</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-mid"></span>
+          <span>Rooftop, medium</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-high"></span>
+          <span>Rooftop, large</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-farm"></span>
+          <span>Solar farm, ground</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-carport"></span>
+          <span>Carport</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch pv-canal"></span>
+          <span>Canal-top / floating</span>
+        </div>
+        <p class="pv-legend-note">Rooftop bands scale with roof area, not
+          building height.</p>
+      </section>
+
+      <section id="shading-overlay-legend" class="pv-overlay-legend shading-overlay-legend hidden" aria-label="PV shading penalty legend" title="Red = most shaded in this layout, NOT 40% physical loss. Actual geom PV-bearing values: 0.771-1.000; 728 of 964 are &gt;=0.999.">
+        <h2>Shading penalty</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch shade-none"></span>
+          <span id="shading-legend-none">&gt;=1.00 yield</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch shade-mid"></span>
+          <span id="shading-legend-mid">0.88 yield</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch shade-high"></span>
+          <span id="shading-legend-high">0.77 most shaded</span>
+        </div>
+        <p id="shading-legend-note" class="legend-note">Dynamic geom LP scale 0.771-0.998; 1.000 is still unshaded. Red = most shaded in this layout, NOT 40% physical loss.</p>
+      </section>
+
+      <section id="pv-deployment-legend" class="pv-overlay-legend hidden" aria-label="PV deployment legend">
+        <h2>PV deployed</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-none"></span>
+          <span>No deployed PV</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-mid"></span>
+          <span>Partially used</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-full"></span>
+          <span>Ceiling used</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-farm"></span>
+          <span>Solar farm deployed</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch deploy-floating"></span>
+          <span>Canal-top PV deployed</span>
+        </div>
+        <p class="legend-note">Colour shows deployed kWp divided by the technical ceiling. Roofs fill first because PMSGY keeps rooftop PV cheap, the 864-slice run unlocks carport/canal-top PV, and low-income acceptance was raised.</p>
+      </section>
+
+      <section id="realism-flags-legend" class="pv-overlay-legend realism-flags-legend hidden" aria-label="Placement realism flag legend">
+        <h2>Placement flags</h2>
+        <div id="realism-flags-list">
+          <div class="pv-legend-row realism-legend-row">
+            <span class="pv-swatch" style="background: rgb(251, 191, 36)"></span>
+            <span>Amenity lacks road neighbour <strong>24</strong></span>
+          </div>
+        
+          <div class="pv-legend-row realism-legend-row">
+            <span class="pv-swatch" style="background: rgb(168, 85, 247)"></span>
+            <span>Housing adjacent to solar-farm edge <strong>21</strong></span>
+          </div>
+        </div>
+        <p class="legend-note">Map overlay only. Dispatch realism checks are in the Impact tab and read dispatch_results.json.</p>
+      </section>
+
+      <section id="carport-sites-legend" class="pv-overlay-legend carport-sites-legend hidden" aria-label="Carport site legend">
+    <h2>Carport sites</h2>
+    <div class="pv-legend-row">
+      <span class="pv-swatch carport-site-swatch"></span>
+      <span>17 exported sites</span>
+    </div>
+    <p class="legend-note">17 exported sites on the loaded layout; compact cyan canopy ticks mark each discrete parking-canopy site.</p>
+  </section>
+
+      <section id="electrical-overlay-legend" class="pv-overlay-legend electrical-overlay-legend hidden" aria-label="Electrical network legend">
+        <h2>Electrical network</h2>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-backbone"></span>
+          <span>33 kV backbone</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-distribution"></span>
+          <span>11 kV distribution</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-import"></span>
+          <span>Import / sink arcs</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-export"></span>
+          <span>Export / source arcs</span>
+        </div>
+        <div class="pv-legend-row">
+          <span class="pv-swatch electrical-transformer"></span>
+          <span>Transformer zones</span>
+        </div>
+        <p id="electrical-legend-note" class="legend-note">659 feeders; 64 backbone; 57 transformer zones.</p>
+      </section>
+
+      <section id="cell-panel" class="cell-panel hidden" aria-label="Selected cell properties">
+        <div class="cell-panel-header">
+          <div>
+            <span class="eyebrow">Selected cell</span>
+            <h2 id="cell-panel-title">Cell</h2>
+          </div>
+          <button id="cell-panel-close" class="icon-button" type="button" aria-label="Close selected cell panel">x</button>
+        </div>
+        <dl id="cell-panel-grid" class="cell-detail-grid"></dl>
+      </section>
+
+      <section class="compass-panel" aria-label="Map compass" style="cursor: grab; touch-action: none;">
+        <div class="compass-face">
+          <span class="compass-label compass-n">N</span>
+          <span class="compass-label compass-e">E</span>
+          <span class="compass-label compass-s">S</span>
+          <span class="compass-label compass-w">W</span>
+          <span id="compass-needle" class="compass-needle" style="transform: translate(-50%, -50%) rotate(35deg);"></span>
+        </div>
+      </section>
+
+      <section class="scale-panel" aria-label="Map scale" title="Approximate ground scale at zoom 13.45" style="--scale-bar-width: 83px;">
+        <div id="scale-bar" class="scale-bar"></div>
+        <span id="scale-label">500 m</span>
+      </section>
+
+      <!-- The invisible reveal target for clean mode. It carries no paint of
+           its own, so it never appears in a screenshot; it exists only to
+           catch the pointer in the bottom-left corner and bring the panels
+           back. Inert unless clean mode is on. -->
+      <div id="clean-hotspot" aria-hidden="true"></div>
+
+      <section id="loading-panel" class="loading-panel hidden" aria-live="polite">Loading Planned Integrated (this thesis)...</section>
+      <div id="cockpit-chart-tooltip" class="cockpit-chart-tooltip hidden" role="tooltip"></div>
+    </main>
+
+    <script src="https://unpkg.com/deck.gl@^9.0.0/dist.min.js"></script>
+    <script src="./app.js?v=20260820-stperiod"></script>
+  
+

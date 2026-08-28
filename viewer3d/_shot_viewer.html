@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>viewer still</title>
+    <!--
+      STILL-CAPTURE WRAPPER FOR THE 3D VIEWER, 2026-08-17.
+
+      WHY NOT canvas.toBlob(). The first attempt captured the WebGL canvas
+      directly and the result was visibly wrong: a black void instead of the
+      sky, and no legend, topbar, cockpit or scale bar at all. Those are DOM
+      layers behind and around the canvas, not inside it, so a canvas readback
+      cannot see them. The June 2026 stills that this set has to match were
+      full-page screenshots, which is why they have chrome and atmosphere.
+
+      So: load the viewer in a full-bleed iframe, set the state from the query
+      string, and let Edge's own `--screenshot` rasterise the whole composited
+      page. One Edge invocation per still.
+
+        msedge --headless=new --screenshot=out.png --window-size=1800,1200
+               --virtual-time-budget=45000
+               "http://localhost:8731/viewer3d/_shot_viewer.html?time=12&overlay=pv"
+
+      `--virtual-time-budget` is right for a single still and WRONG for an
+      animation: it fast-forwards timers, then freezes the page. It silently
+      paused the sun sweep at frame 74 before that was understood.
+
+      Params: time= 0-24 | date= 1-366 | overlay= pv|shade|deploy|grid
+              cockpit= 0|1 | tab= live|trends|trading|impact
+              layout= optimised_sa|zirakpur_ribbon|... | period= 2030|2042|2055
+    -->
+    <style>
+      html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b1220}
+      #stage{position:fixed;inset:0;width:100%;height:100%;border:0}
+    </style>
+  </head>
+  <body>
+    <iframe id="stage" src="./index.html"></iframe>
+    <script>
+      const Q = new URLSearchParams(location.search);
+      const P = (k, d) => (Q.has(k) ? Q.get(k) : d);
+      const OVERLAY_BTN = { pv: "pv-overlay-toggle", shade: "shading-overlay-toggle",
+                            deploy: "pv-deployment-toggle", grid: "electrical-overlay-toggle" };
+      const f = document.getElementById("stage");
+
+      // Poll rather than wait on `load`: the frame may already have loaded by
+      // the time this runs, and a once-listener would then never fire.
+      const ready = () => {
+        const d = f.contentDocument;
+        return d && d.getElementById("sun-time") &&
+               (d.getElementById("deckgl-overlay")?.width || 0) > 100;
+      };
+
+      const go = () => {
+        const d = f.contentDocument;
+        const set = (id, v) => { const e = d.getElementById(id); if (!e || v == null) return;
+          e.value = v; e.dispatchEvent(new Event("input", { bubbles: true }));
+          e.dispatchEvent(new Event("change", { bubbles: true })); };
+
+        const layoutWanted = P("layout", "optimised_sa");
+        if (d.getElementById("layout-select")?.value !== layoutWanted)
+          [...d.querySelectorAll("#layout-buttons button")]
+            .find((b) => b.dataset.layout === layoutWanted)?.click();
+
+        setTimeout(() => {
+          const ov = P("overlay", null);
+          if (ov && OVERLAY_BTN[ov]) d.getElementById(OVERLAY_BTN[ov])?.click();
+
+          const per = P("period", null);
+          if (per) { const s = d.getElementById("cockpit-period");
+                     if (s) { s.value = per; s.dispatchEvent(new Event("change", { bubbles: true })); } }
+
+          const wantCockpit = P("cockpit", "0") === "1";
+          const panel = d.getElementById("cockpit-panel");
+          if (panel && panel.classList.contains("hidden") === wantCockpit)
+            d.getElementById("cockpit-toggle")?.click();
+          const tab = P("tab", null);
+          if (tab) d.querySelector('[data-cockpit-tab="' + tab + '"]')?.click();
+
+          set("sun-date", P("date", 172));
+          set("sun-time", P("time", 12));
+
+          // THESIS-STILL EXTENSIONS, (the author: "make sure they dont
+          // have the banners or cockpit when taking pics of town").
+          //
+          // chrome=0 hides EVERY DOM layer and leaves only the WebGL scene.
+          // Visibility, not display, so the canvas keeps its size; the deck
+          // container and, optionally, the land-use legend are switched back
+          // on over the blanket rule, which is how visibility nesting works.
+          // legend=1 keeps the legend for the land-use still, whose caption
+          // promises the budget can be read against it.
+          if (P("chrome", "1") === "0") {
+            const css = d.createElement("style");
+            const keepLegend = P("legend", "0") === "1";
+            css.textContent =
+              "body *{visibility:hidden !important}" +
+              "#deck-container,#deck-container *{visibility:visible !important}" +
+              (keepLegend
+                ? "#legend-panel,#legend-panel *{visibility:visible !important;" +
+                  "display:block !important}" +
+                  "#legend-panel{background:rgba(255,255,255,0.97) !important;" +
+                  "box-shadow:none !important;border:1px solid #cbd5e0 !important}" +
+                  // The panel's own theme sets light text for a dark card;
+                  // on the forced white card it disappeared entirely.
+                  "#legend-panel,#legend-panel *{color:#1a202c !important;" +
+                  "text-shadow:none !important}"
+                : "");
+            d.head.appendChild(css);
+            if (keepLegend) {
+              // The panel boots collapsed; visibility cannot beat the
+              // display:none its collapsed class applies, so uncollapse it.
+              const lp = d.getElementById("legend-panel");
+              lp?.classList.remove("hidden", "collapsed", "is-collapsed");
+              d.getElementById("legend-panel-body")?.classList.remove("hidden", "collapsed");
+            }
+          }
+
+          // Camera control. pitch= bearing= zoom= set the view directly;
+          // focus=farm centres on the generation land, computed from the
+          // loaded geojson rather than hard-coded, so it follows the frozen
+          // plan if the footprint ever moves.
+          setTimeout(() => {
+            // EVERYTHING RUNS IN THE IFRAME'S OWN REALM VIA eval. app.js
+            // declares `state` with a top-level const, and const does NOT
+            // become a window property, so `f.contentWindow.state` is
+            // undefined from out here. The first version of this block read
+            // exactly that, threw, and the catch swallowed it: two "different"
+            // shots came back with the default camera. eval inside the frame
+            // resolves the lexical global scope, which is where state lives.
+            const w = f.contentWindow;
+            const cam = {};
+            for (const k of ["pitch", "bearing", "zoom"])
+              if (Q.has(k)) cam[k] = Number(Q.get(k));
+            const code = `
+              (function () {
+                try {
+                  ${P("sun", "1") === "0" ? `
+                  sunMarkerLayer = function () { return null; };
+                  state._lastLayers = null; state._lastLayersKey = null;
+                  updateLayers();` : ""}
+                  const cam = ${JSON.stringify(cam)};
+                  const FOCUS = ${JSON.stringify(P("focus", ""))};
+                  const FIT = ${JSON.stringify(P("fit", ""))};
+
+                  // Bounds of an arbitrary set of parcels, west/south/east/north.
+                  function boundsOf(match) {
+                    let w = 1e9, s = 1e9, e = -1e9, n = -1e9, hit = 0;
+                    for (const ft of state.data.features) {
+                      const p = ft.properties || {};
+                      if (p.role !== "parcel") continue;
+                      if (match && !match(p)) continue;
+                      const ring = ft.geometry && ft.geometry.coordinates &&
+                                   ft.geometry.coordinates[0];
+                      if (!ring) continue;
+                      hit++;
+                      for (const pt of ring) {
+                        if (pt[0] < w) w = pt[0];
+                        if (pt[0] > e) e = pt[0];
+                        if (pt[1] < s) s = pt[1];
+                        if (pt[1] > n) n = pt[1];
+                      }
+                    }
+                    return hit ? [w, s, e, n, hit] : null;
+                  }
+
+                  // FIT IS COMPUTED, NOT GUESSED. Hand-tuned zoom values
+                  // cropped the town on one shot and left it small on the
+                  // next; deck's own fitBounds solves for the extent, and a
+                  // pitched camera simply needs a little more room because
+                  // the far edge recedes up the frame.
+                  function applyFit(bb, padFrac) {
+                    const vp = new deck.WebMercatorViewport({
+                      width: window.innerWidth, height: window.innerHeight
+                    });
+                    const pad = Math.round(Math.min(window.innerWidth,
+                                                    window.innerHeight) * padFrac);
+                    const f = vp.fitBounds([[bb[0], bb[1]], [bb[2], bb[3]]],
+                                           { padding: pad });
+                    cam.longitude = f.longitude;
+                    cam.latitude = f.latitude;
+                    // fitBounds solves for an unrotated, unpitched camera. A
+                    // rotated square needs its diagonal, so it loses about
+                    // half a zoom level; a pitched one gains most of that back
+                    // because the ground foreshortens. The residual is a
+                    // constant bias, tuned once against the full-town shot and
+                    // overridable per shot rather than by editing this file.
+                    const rot = ((cam.bearing || 0) % 90 + 90) % 90 > 3;
+                    cam.zoom = f.zoom + ${Number(P("zoombias", 0.75))} -
+                               (rot ? 0.35 : 0);
+                  }
+
+                  if (FIT === "1") {
+                    const bb = boundsOf(null);
+                    if (bb) applyFit(bb, 0.02);
+                  } else if (FOCUS) {
+                    const m = FOCUS === "farm"
+                      ? (p) => p.land_use === "solar_farm" ||
+                               String(p.amenity_subtype || "").indexOf("solar_expansion_") === 0
+                      : (p) => p.land_use === FOCUS;
+                    const bb = boundsOf(m);
+                    if (bb) applyFit(bb, 0.10);
+                    else return "focus-empty:" + FOCUS;
+                  }
+                  if (Object.keys(cam).length) {
+                    let vs = Object.assign({}, state.viewState, cam);
+                    vs = constrainViewState(vs);
+                    state.viewState = vs;
+                    state.deckgl.setProps({ viewState: vs });
+                  }
+                  return "cam-ok";
+                } catch (e) { return "cam-fail " + e.message; }
+              })()`;
+            const result = w.eval(code);
+            document.title = "SHOT_READY " + result;
+          }, 1400);
+        }, 900);
+      };
+
+      (function poll() { if (ready()) go(); else setTimeout(poll, 200); })();
+    </script>
+  </body>
+</html>

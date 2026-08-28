@@ -1,0 +1,1119 @@
+# (Claude 2 critical-review #4): HARD-constraint catchment
+# parameters consolidated to YAML. Previously all five values were
+# module-level Python constants in `layout/constraints.py` (an
+# unintentional pattern since the URDPFI norms they encode are
+# config-table values, not implementation details). Edit numbers here
+# and re-run -- no code change needed. URDPFI 2014 §8.2 Table 2 is the
+# anchoring document for all five.
+constraint_catchments_m:
+  school: 1000.0                # URDPFI primary-school 800 m + grid rounding
+  religious: 800.0              # walking access to neighbourhood mandir/gurudwara
+  cool_refuge: 1000.0           # OPEN_SPACE or BLUE_SPACE within walking
+  #: realigned 1200 -> 2500 for the IPHS facility model.
+  # The 1200 m walking radius was calibrated for the OLD ~12-dispensary-per-cell
+  # model. IPHS 2022 consolidates to few larger facilities (2 urban-PHC + 1
+  # urban-Chc for 100k); Uphc primary-care walking radius ~2 km (URDPFI/Iphs) +
+  # 200 m-grid Manhattan rounding -> 2500 m. The CHC/hospital is 5 km vehicular
+  # (the soft population-catchment radius). With only 3 healthcare cells the old
+  # 1200 m floor was physically unmeetable; 2500 m matches the access model.
+  healthcare: 2500.0            # IPHS UPHC primary-care ~2 km walk + grid rounding
+  park: 600.0                   # OPEN_SPACE specifically (not BLUE_SPACE),
+                                # URDPFI neighbourhood-park 500-800 m band
+park_cells_per_quadrant_min: 4  # >= 4 OPEN_SPACE cells per quadrant containing
+                                # residential cells (anti-mega-park-corner rule)
+
+# ---------------------------------------------------------------------------
+# (Phases 2A/2B/2C/2D/4 —:
+# Lifetime demand trajectory (2030 -> 2055 horizon). These five drivers
+# compound MULTIPLICATIVELY to lift grid_net_annual_inr over the
+# project_lifetime_years horizon. Each is expressed as the
+# Time-Averaged multiplier across the 25-yr horizon (Not endpoint),
+# so applying them directly to the annual grid-net cost gives a
+# defensible lifetime cost.
+# Important: 2030 Annual Alpha=0 LP IS Unaffected. These multipliers
+# only enter `lifetime_cost_inr` reporting — the LP sees 2030 demand
+# unchanged. The semantic interpretation is "lifetime cost projects
+# 2030-sized capacity sized by the LP × demand growth on top of it".
+# This is option D1(a) per Claude 2's plan -- D1(b) is a
+# bigger refactor that re-solves the LP at mid-horizon.
+# ---------------------------------------------------------------------------
+lifetime_demand_trajectory:
+  enabled: true
+
+  # 2A — population growth (Zirakpur StatisticsTimes extrapolation +
+  # MoHFW Punjab tapering). 2.9 %/yr 2011-2030 historic -> 1.8 %/yr
+  # 2030-2040 -> 1.2 %/yr 2040-2055.
+  # Cumulative endpoint: 1.018^10 × 1.012^15 = 1.43 at 2055.
+  # Time-averaged across 25 yrs (integral / T) ≈ 1.20.
+  # multiplier at 2055 - the single largest driver of future demand (1.43 of the
+  # 1.60 total uplift, about 72% of all growth) AND UNCITED.
+  # The Cited Source Says Something Else. StatisticsTimes, quoting the Report of
+  # the Technical Group on Population Projections (National Commission, 2011-2036,
+  # Census-based): Punjab grows **0.58%/yr in 2026, DECLINING to 0.35%/yr
+  # by 2036** (2030: 31,984,000; 2036: 32.7 crore-scale 3.27 crore). The old
+  # 1.8%/1.2% was 3-4x that. It came from tapering ZIRAKPUR'S HISTORIC 2.9%/yr -
+  # a village becoming a town off a tiny base, which cannot continue and which the
+  # Revised Master Plan itself shows breaking its own projections (plan 129,038
+  # for 2031; trend-based 808,974; the document admits the projection "will cross
+  #... in the next two years").
+  # https://statisticstimes.com/demographics/india/punjab-population.php
+  # IT Was Also Incoherent With The Frozen Layout. Housing is fixed at 54,794
+  # households by design, so a 1.4295 multiplier implied 6.52 persons per
+  # household by 2055, against the model's own Punjab anchor of 4.6 (NSS
+  # 78th Round) and against a nuclearising trend. At 0.45%/0.35% it implies 5.03,
+  # a modest densification rather than an impossible one.
+  # Why Not Zero:
+  # the town from surrounding areas, not organic births. That is real - but
+  # migration into a FIXED housing stock shows up as rising OCCUPANCY, which is
+  # precisely the "plan as delivered" story the master plan documents for real
+  # Zirakpur (6x overshoot, encroached road reservations, unauthorised colonies).
+  # That Belongs IN Baseline 2, not in the designed town, which is built to plan
+  # and stays at its design capacity. The designed town therefore carries only the
+  # regional demographic drift below.
+  # DERIVATION of the two rates, both from the source:
+  #   2030-2040  0.45%  = the source's own decline across that window
+  #                       (0.58 in 2026 -> 0.35 by 2036, ~0.45 averaged)
+  #   2040-2055  0.35%  = the source's Terminal rate Held Flat. The source
+  #                       publishes nothing past 2036; extrapolating its decline
+  #                       would give LESS, so holding it is the conservative call.
+  # Result: 2042 multiplier 1.2242 -> 1.0533, 2055 1.4295 -> 1.1022.
+  # The Town IS Built TO Its Design Capacity And Stays There. 250,000 people in
+  # 54,794 households at 2030, and the frozen seed-42 layout is not re-phased.
+  # Growth after 2030 is absorbed as MODEST DENSIFICATION, not as new building:
+  #     2030  250,000  4.56 persons/HH
+  #     2042  263,325  4.81
+  #     2055  275,555  5.03   (+10% occupancy over 25 years)
+  # NO Town-Specific IN-Migration IS Modelled. The rates below are the Punjab
+  # STATE demographic projection, which already contains net migration INTO
+  # Punjab but says nothing about intra-state redistribution (village -> town).
+  # Using the state rate for the town therefore asserts that the town grows at
+  # the regional average with NO disproportionate pull. That is deliberate and
+  # it is self-consistent: a town at design capacity has no spare housing to
+  # absorb a migration surge. Note `income_mobility` is NOT migration either -
+  # it is the SAME households moving up income bands.
+  # Where The Migration Story Goes Instead: Baseline 2, the "plan as delivered".
+  # Migration into a fixed housing stock is rising OCCUPANCY, and the Revised
+  # Master Plan documents exactly that for real Zirakpur - population ~6x past
+  # its own 2031 projection, planned road reservations built over so proposals
+  # "cannot be implemented" in six named villages, and unauthorised colonies
+  # requiring regularisation. The designed town holding to plan while the
+  # delivered plan is overwhelmed IS the comparison the two baselines exist to
+  # make, so putting phasing or surge migration into the DESIGNED town would
+  # blur the very contrast being measured.
+  # Three Options Rejected, recorded so the choice reads as a choice:
+  #   (A) cap at 250k, multiplier 1.0 - cleanest, but denies any densification
+  #       pressure at all, which is not credible next to Zirakpur's real history
+  #   (C) phase the residential build 2030 -> 2055 - most realistic, but it
+  #       moves the 2030 CALIBRATION BASE and so re-bases every pin
+  #   (D) reserve open space for later residential - keeps 2030 intact, but the
+  #       network is built ONCE and shared across periods, so per-period
+  #       households would need a per-period node set: a real refactor
+  # CAVEAT to state in the write-up: building 54,794 houses by 2030 is fast
+  # against the 15-25 years real new towns take (GMADA phases 3,829 ha
+  # deliberately). Read the 2030 snapshot as The Completed Town, with 2042 and
+  # 2055 being 12 and 25 years after completion.
+  population_growth:
+    cagr_2030_2040: 0.0045   #, Technical Group on Population Projections
+    cagr_2040_2055: 0.0035   # source terminal rate held flat (conservative)
+    lifetime_avg_multiplier: 1.05    # time-averaged 2030-2055 (was 1.20)
+
+  # supersedes coarse"): this coarse district-aggregate EV-demand uplift
+  # (+3.8 % time-averaged, fleet share 5 %->15 %) is now replaced by the
+  # finer per-income EV-charge ramp wired into energy/costs.py
+  # `ev_demand_multiplier(year)` via `ev_vehicle_ownership.ev_car_share_by_period`
+  # (economics.yaml). Neutralised here to 1.0 (no-op) so EV charging-demand
+  # growth is counted ONCE, at income resolution, not double-counted. The
+  # original derivation/sources are retained above for the thesis writeup.
+  # share_2030/share_2055 kept for documentation only (not read while mult=1.0).
+  ev_adoption_ramp:
+    share_2030: 0.05
+    share_2055: 0.15
+    lifetime_avg_multiplier: 1.0     # SUPERSEDED -> no-op (was 1.038); see note
+
+  # 2C — climate-drift cooling sensitivity. IPCC AR6 SSP2-4.5 projects
+  # Punjab +1.5-2.5 °C by 2050 vs 1990 baseline.
+  # ⚠ The Elasticity Sentence That Used TO Sit Here Was False
+  #. It read "AEEE / CEEW cooling elasticity 8-10 %/°C at
+  # 2030 rising to 10-12 %/°C at 2050". The AEEE/CEEW report was downloaded and
+  # parsed in full on and contains NO elasticity, NO degree-day and
+  # NO per-°C figure at all. The real, verified sources for 10 %/°C are Petri &
+  # Caldeira (2015) / US CCSP (5-20 %/°C) and an India-specific CDD derivation
+  # (~11 %/°C) - both written out at `cooling_elasticity_per_c` below. The
+  # 1.5-2.5 °C AR6 range in the first sentence is ALSO superseded: see
+  # `delta_t_2055_c`, which is 1.2 °C because this model's climate file is
+  # 2014-2024 and the "vs 1990" framing double-counted warming already in it.
+  # The arithmetic in the next line is retained ONLY to explain how the dead
+  # 1.015 below was once produced; it is not a live calculation.
+  # (Historic: cooling ~25 % of residential demand, ~12 % × 25 % = +3 % on
+  # district demand at 2050, time-averaged (1 + 1.03) / 2 = 1.015.)
+  # ⚠ Read This Before Trusting The Block Below note,).
+  # `climate_drift_cooling` is NO LONGER a district-wide demand multiplier.
+  # `lifetime_avg_multiplier: 1.015` below is DEAD - `period_demand_multiplier`
+  # (energy/costs.py) deliberately excludes this key from its driver loop.
+  # What IS live: `delta_t_2030_c` / `delta_t_2055_c` / `cooling_elasticity_per_c`,
+  # read by `Economics.cooling_warming_multiplier`, which applies the uplift to
+  # the Cooling Term Only (1.096 at 2042, 1.200 at 2055) and by Trj-5's
+  # `pv_warming_period_derate` on the supply side. Both read the same delta-T so
+  # the demand and PV sides of warming cannot disagree.
+  # WHY: as a flat multiplier this raised JANUARY 2055 demand by 3%. Warming
+  # raises cooling and lowers heating; it does not raise winter demand.
+  # `cooling_share_of_demand: 0.25` below is ALSO dead and ALSO stale - the
+  # model's measured cooling share is ~32%. It is retained only because the
+  # original derivation quoted it. Counted ONCE, on the cooling term.
+  climate_drift_cooling:
+    delta_t_2030_c: 0.0           # baseline (climate.yaml is 2014-2024)
+    # Wrong, so the model double-counted warming that has Already Happened and
+    # is already inside its own climate data.
+    #   The old 2.0 came from "IPCC AR6 SSP2-4.5 projects Punjab +1.5-2.5 C by
+    #   2050 VS 1990 BASELINE". But `config/climate.yaml` is IMD 2014-2024
+    #   observed data for the Zirakpur cell. Applying a from-1990 delta on top
+    #   of a 2014-2024 baseline counts the 1990-2020 warming TWICE.
+    #   Post-AR6 synthesis for India, SSP2-4.5, gives about **+1.2-1.3 C by
+    #   mid-century RELATIVE TO 1995-2014** - and our baseline is a decade
+    #   later still, so the remaining delta is at or below the bottom of that
+    #   band. 1.2 taken as the central, which is the conservative end.
+    #   PLOS Climate, "A post-AR6 update on observed and projected climate
+    #   change in India" (, peer-reviewed synthesis of AR6/CMIP6):
+    #   https://journals.plos.org/climate/article?id=10.1371/journal.pclm.0000724
+    # Consumed by BOTH `cooling_warming_multiplier` (demand side) and TRJ-5's
+    # `pv_warming_period_derate` (supply side), so the two stay consistent.
+    #   cooling uplift 2055: 1.200 -> 1.120 | 2042: 1.096 -> 1.058
+    delta_t_2055_c: 1.2           # AR6 SSP2-4.5 India, vs the 2014-2024 baseline
+    # CITATION.
+    # !! The Original Attribution Was False And Has Been Removed. !!
+    # This block used to claim 0.10 sat inside an "AEEE/CEEW 8-12 %/C band".
+    # On that report was Downloaded And Parsed IN Full (98 pages,
+    # AEEE/CEEW "Demand Analysis for Cooling by Sector in India in 2027"). It
+    # contains ZERO occurrences of "elasticity", "degree-day", "per degree" or
+    # "%/C". The Band IS Not IN That Document. It appears to have been written
+    # from memory and never checked - which is exactly the failure mode the
+    # project rule ("a URL that has not been opened is not a citation") exists
+    # to catch. Do not restore the AEEE citation for this parameter.
+    # The Value 0.10 IS Unchanged, because two Independent verified lines both
+    # support it. The number was right; only its provenance was wrong.
+    # PRIMARY (, peer-reviewed, opened and quoted): Petri, Y. & Caldeira,
+    # K. (2015), "Impacts of global warming on residential heating and cooling
+    # degree-days in the United States", Scientific Reports.
+    # https://pmc.ncbi.nlm.nih.gov/articles/PMC4523835/
+    # Reporting the US Climate Change Science Program's synthesis of ~20
+    # assessments of building-energy sensitivity to warming published since
+    # 1990, VERBATIM: "the total projected average across the surveyed national
+    # studies is a 9.2% energy reduction for heating and a **5-20% increase for
+    # cooling per 1 C of temperature increase**".
+    # -> 10 %/C is MID-BAND. Caveat stated rather than buried: this synthesis is
+    #    US-derived. Its physical quantity is the right one (cooling energy per
+    #    C), but the transfer to India is an assumption, which is why the second
+    #    line below is an India-specific derivation.
+    # CROSS-CHECK ( derivation from data, and it is India-specific):
+    # IEA (2018), "The Future of Cooling" (downloaded and parsed, 92 pp),
+    # https://iea.blob.core.windows.net/assets/0bb45525-277f-4c9c-8d0c-9c0cb5e7d525/The_Future_of_Cooling.pdf
+    # places India among "countries with CDDs over 3 000", at a stated base
+    # temperature of 18 C. A uniform +1 C of warming adds +1 cooling degree-day
+    # for every day already above the base; in India that is very nearly the
+    # whole year, so conservatively ~330 days:
+    #     dCDD/CDD = 330 / 3000 = **+11.0 % per C**
+    # 0.10 sits just BELOW that, i.e. slightly conservative.
+    # NOTE the arithmetic runs the RIGHT way for a hot country: because India's
+    # CDD denominator is huge, its Fractional response per C is Smaller than a
+    # temperate country's. Anyone quoting a global or European elasticity here
+    # would overstate India.
+    # Third, Weaker Check, recorded because it bounds the Top: IEA Energy
+    # Efficiency 2023 (India) reports "every 1 C increase in the average daily
+    # temperature above 24 C drives a 2% rise in electricity demand", and that
+    # "nearly 10% of electricity demand comes from space cooling". If ALL of
+    # that incremental 2% were cooling, the implied cooling elasticity would be
+    # 2%/0.10 = 20 %/C - the TOP of the Petri/CCSP band. That is a short-run
+    # peak-season upper bound, not a like-for-like figure, so it is used only to
+    # confirm 10 %/C is not too high.
+    # A Warning About A Number That Looks Like This One But IS Not: search
+    # results attribute "25% more cooling degree days" to the IEA. Parsing the
+    # source shows that 25% is **Brazil's TOTAL CDD increase between now and
+    # 2050**, NOT a per-degree elasticity for anywhere. Do not cite it here.
+    # Read The Units Before Comparing IT TO Anything. This elasticity is applied
+    # to the Cooling Term Only (see `cooling_warming_multiplier`, not to
+    # total demand. At this model's measured ~32% cooling share, 10 %/C on
+    # cooling is about **3.2 %/C on district demand**. Both sources above are
+    # cooling-term elasticities, so they compare Like For Like with 0.10; the
+    # IEA India 2 %/C is a Total-demand figure and does Not.
+    # CAVEAT, stated rather than buried: the model's cooling OWNERSHIP is frozen
+    # at 2030 values across all periods (see the CLAUDE.md gap list), so the
+    # adaptation this elasticity represents is currently carried entirely by
+    # this one coefficient rather than by a rising AC stock. Fixing the frozen
+    # ownership would mean revisiting this number to avoid double-counting.
+    cooling_elasticity_per_c: 0.10   # 10 %/C on the Cooling term. Petri & Caldeira 2015 / US Ccsp: 5-20 %/C. India CDD derivation: ~11 %/C.
+    cooling_share_of_demand: 0.25
+    lifetime_avg_multiplier: 1.015   # time-averaged
+
+  # 2D — cooking electrification. Current 5 % electric-cooking share;
+  # 2030 target 25 % (India aggregate); IEA stated-policies 75 % by
+  # 2050 in emerging economies. Cooking is ~12 % of residential
+  # demand if electric. District demand uplift: (0.30 - 0.05) × 0.12
+  # ≈ +3 % at 2055. Time-averaged: ~+1.5 %.
+  # primary study, which was opened and read rather than cited from memory:
+  # "Are Indian Homes Ready for Electric Cooking?" (CEEW, built on IRES 2020,
+  # reputable research org, MEASURED survey).
+  # https://www.ceew.in/sites/default/files/ceew-study-on-clean-electric-cooking-transition-in-indian-homes.pdf
+  # (1) share_2030 0.05 -> 0.103. CEEW measures eCooking adoption at 5% of
+  #     Indian households NATIONALLY but **10.3% URBAN** and 2.7% rural. This
+  #     town is entirely urban, so the urban figure is the right starting point.
+  #     Note The Direction: this Reduces the driver, because there is less
+  #     growth from 10.3% to 30% than from 5% to 30%. Taken anyway - the
+  #     national blend was simply the wrong denominator for an urban town.
+  # (2) cooking_share_of_residential_kwh 0.12 -> 0.20. CEEW gives the number
+  #     directly: a typical household needs **974 kWh a year** to meet its
+  #     entire cooking-energy requirement electrically (2.95 GJ of useful
+  #     cooking energy; INR 446/month at INR 5.5/kWh). Against this model's
+  #     measured residential 4,825 kWh/HH/yr, that is 974/4825 = 20.2%, not
+  #     12%. The old 0.12 was uncited and about 60% of the measured value.
+  # Corroboration for share_2055 = 0.30, which is UNCHANGED and stays the
+  # conservative call: IEA projects electricity could meet UP TO 75% of cooking
+  # needs in emerging economies by 2050. 30% is deliberately well below that.
+  # CEEW also finds 85% of current eCooking users sit in the top five wealth
+  # deciles, and that eCooking beats LPG below about INR 6.6/kWh on the margin -
+  # both of which point UP for Punjab, where domestic consumers get 300 free
+  # units a month. Not exploited here; noted so the 0.30 reads as conservative.
+  # *** Site-District Corroboration (, Nfhs-5). ***
+  # and it carries Sas Nagar - Zirakpur's Own district - as district 19:
+  #     population in households with electricity      urban 99.6 / rural 99.4 %
+  #     improved drinking-water source                       99.9 / 99.9 %
+  #     improved sanitation facility                         87.6 / 80.2 %
+  #     Households Using Clean Fuel For Cooking              88.9 / 80.7 %
+  #        (footnote 3 defines clean fuel as "Electricity, LPG/natural gas, biogas")
+  # Why IT Matters Here: the 2030 starting point for cooking electrification is
+  # a district that is ALREADY 88.9% urban clean-fuel, on near-universal
+  # electricity (99.6%). So a 0.103 -> 0.30 electric-cooking share is a shift
+  # WITHIN an already-clean-fuel population, not a leap from solid fuels - the
+  # transition this block models is LPG-to-electric, which is exactly the
+  # margin CEEW prices at ~INR 6.6/kWh. It also independently supports the
+  # model treating grid connection as given rather than as an investment.
+  # NOTE the clean-fuel figure is NOT the electric-cooking share - it bundles
+  # LPG, which dominates it. Do not quote 88.9% as eCooking.
+  # Re-derivation, following this block's own stated method:
+  #   (share_2055 - share_2030) x cooking_share = (0.30 - 0.103) x 0.20 = 0.0394
+  #   -> endpoint 1.0394, so lifetime_avg = (1 + 1.0394)/2 = 1.0197
+  cooking_electrification:
+    share_2030: 0.103                 # CEEW: 10.3% URBAN (5% national, 2.7% rural)
+    share_2055: 0.30                  # central; IEA says up to 75% by 2050 - conservative
+    cooking_share_of_residential_kwh: 0.20   # CEEW 974 kWh/yr / 4,825 measured
+    lifetime_avg_multiplier: 1.0197  # -> endpoint 1.0394 (was 1.015 -> 1.030)
+
+  # 4 — income mobility low->mid->high over 25 yrs. PEW + Punjab GVA
+  # growth: shifts 12 pp low->mid, 5 pp mid->high 2030-2055. Mid
+  # consumes ~1.7 × low / kWh; high ~3 × low / kWh. District demand
+  # uplift: ~6-8 % at 2055. Time-averaged: ~+3.5 %.
+  # driver, all found by checking the block against the model's OWN data.
+  # (1) The 2030 Income Split Did Not Match The Model. This block said
+  #     low 0.30 / mid 0.45 / high 0.25. `config/demographics.yaml` says
+  #     EWS 0.20 + LIG 0.20 = 0.40 low, MIG 0.45 mid, HIG 0.15 high. The energy
+  #     model collapses the 4 PMAY bands to 3 land uses that way
+  #     (core/requirements.py _AGG_TIER_TO_LANDUSE), so 0.40/0.45/0.15 is the
+  #     real starting distribution and 0.30/0.45/0.25 was never true here.
+  # (2) The Consumption Ratios Were Wrong. The block assumed mid consumes 1.7x
+  #     low and high 3x low. The model MEASURES (, per-household
+  #     annual, `demand_components_by_slice_kw` summed over the frozen layout):
+  #         low 2,204 | mid 5,796 | high 12,453 kWh/HH/yr
+  #     i.e. mid = 2.63x low and high = 5.65x low. The tier gap in this model is
+  #     far wider than the block assumed, so the SAME population shift moves far
+  #     more energy than the old arithmetic allowed.
+  # (3) Therefore The Uplift Was Roughly Half What IT Should BE. Re-derived with
+  #     the model's own shares and its own measured consumption, holding the
+  #     12pp low->mid and 5pp mid->high shift unchanged:
+  #         2030 mean = 0.40x2204 + 0.45x5796 + 0.15x12453 = 5,358 kWh/HH
+  #         2055 mean = 0.28x2204 + 0.52x5796 + 0.20x12453 = 6,122 kWh/HH
+  #         endpoint uplift = 6122 / 5358 = 1.1426  (was 1.070)
+  #     `lifetime_avg_multiplier` is what the code reads, and it back-solves the
+  #     endpoint as E = 2*avg - 1, so avg = (1 + 1.1426)/2 = 1.0713.
+  # Still Uncited, and flagged rather than hidden: the 12pp / 5pp Shift itself.
+  # Sourced in the original comment only as "PEW + Punjab GVA growth", with no
+  # URL and no Tier label. Fixing the CONVERSION above needs no new source - it
+  # is internal consistency - but the shift magnitude does. Next citation job.
+  income_mobility:
+    share_low_2030: 0.40              # = demographics.yaml EWS 0.20 + LIG 0.20
+    share_mid_2030: 0.45              # = MIG
+    share_high_2030: 0.15             # = HIG
+    # CITATION: the 12pp / 5pp SHIFT, previously sourced
+    # only as "Pew + Punjab Gva growth" with no Url and no Tier label.
+    # SOURCE: WEF + Bain, "The Future of Consumption in Fast-Growth Consumer
+    # Markets: India"  - the SAME report demographics.yaml already cites
+    # for the 2030 income_shares, so the two are now consistent.
+    # *** Quote And Url. The Conclusion IS Unchanged And
+    # IS Now Slightly Stronger. *** This block used to quote the report as
+    # projecting "a diamond by 2030" with "1 in 2 households in the high and
+    # upper-middle-income segments - up from 1 in 4", cited to Bain's press
+    # release. That press release was opened and parsed in full: it contains
+    # NEITHER phrase ("diamond", "1 in 2" and "1 in 4" all return zero hits),
+    # and neither does Bain's "10 Mega Trends" page. The quote came from a
+    # search summary, not from the document. The WEF report page itself
+    # returns 403 to automated fetches so it could not be checked directly.
+    # REPLACED with what an opened Bain page actually says, verbatim
+    # (https://www.bain.com/insights/how-india-will-consume-in-2030-10-mega-trends/ ):
+    #   "Nearly 80% of households in 2030 will be middle-income, up from about
+    #    50% today."
+    #   "As 140 million households move into the middle class and another
+    #    20 million move into the high-income bracket..."
+    # So the verified rate is +30 pp over ~12 years = ~2.5 pp/yr.
+    # This Model IS Deliberately Slower: 12 + 5 = 17 pp over 25 years =
+    # **0.68 pp/yr, about a QUARTER of the WEF-Bain rate** (0.68 / 2.5 = 27%).
+    # The old text said "about a THIRD" off the unverified 2.1 pp/yr figure;
+    # on the verified number the model is MORE conservative, not less.
+    # Justified because that rate covers 2018-2030, when the easiest gains are
+    # made; mobility slows as a country approaches middle-income status, and
+    # this model's window starts in 2030 where WEF-Bain's ends.
+    share_low_2055: 0.28              # 12 pp shifts to mid
+    share_mid_2055: 0.52              # +12 pp in, -5 pp out
+    share_high_2055: 0.20             # 5 pp from mid to high
+    # measured tier consumption used for the re-derivation (kWh/HH/yr,)
+    kwh_per_hh_low_2030: 2204
+    kwh_per_hh_mid_2030: 5796
+    kwh_per_hh_high_2030: 12453
+    lifetime_avg_multiplier: 1.0713  # -> endpoint 1.1426 (was 1.035 -> 1.070)
+
+  # 5 — AI / on-prem datacentre uplift on OFFICE + LIGHT_INDUSTRY base
+  # demand (,
+  # future... isn't that going to increase energy usage too?"). Sources:
+  #   IEA "Electricity 2024" (Jan 2024): global data-centre electricity
+  #   demand 460 TWh (2022) -> 1,000+ TWh (2026), AI workloads dominant
+  #   driver. IEA "Energy and AI" (Apr 2025): data-centre demand ~415 TWh
+  #   (2024) -> ~945 TWh (2030), AI the dominant growth driver.
+  #   India hyperscale: 1.4 GW (2024) -> 9 GW (2030) per CBRE
+  #   India Data Center Update Q3 2024.
+  #   https://www.iea.org/reports/electricity-2024
+  #   https://www.iea.org/reports/energy-and-ai
+  #   https://www.cbre.co.in/insights (India Data Centre update; the.com report path 404s as of)
+  # Justification Restated - The Value IS Unchanged, The
+  # Mechanism Claim IS Not. This block used to justify the uplift as
+  # "on-prem GenAI / RAG inference / agent ops" adding to district office
+  # load. That named three specific deployment patterns and cited nothing
+  # for any of them; none of the three sources above measures on-premises
+  # inference in commercial floorspace, and no district-level study of it
+  # was found. The claim is withdrawn. What is retained, and what the
+  # sources DO support, is the weaker and sufficient statement:
+  #   (a) IT/electronic equipment is the fastest-growing electricity end
+  #       use in commercial buildings, and the sources above establish that
+  #       compute demand roughly doubles inside this model's horizon;
+  #   (b) This District Hosts NO Hyperscale Site. That is a modelling
+  #       choice, not a finding - the land use does not exist in the
+  #       layout. So the district cannot pick up the bulk of that growth,
+  #       and only the office/light-industry SHARE of it is applied.
+  # +5% -> +20% of the office + light-industry base, at a 10% category
+  # share, is therefore a DERIVED BOUND on a growth rate that is measured
+  # globally and not measured locally - a assumption, and it is
+  # declared as one rather than dressed as an observation.
+  # Where AI Actually Matters IN This Model - it is not here. The AI price
+  # sweep shows the
+  # AI channel that moves the result is the TARIFF, not this demand term.
+  # Data-centre build-out raises the wholesale price the district imports
+  # at; BAU imports 100% of its energy and the district imports 39%, so a
+  # dearer grid hurts BAU more and the lifetime saving RISES from 41.61%
+  # to 52.46% under the AI-boom path. This +1.43% terminal demand uplift is
+  # a rounding error beside that. If the AI assumption is challenged at
+  # viva, the honest answer is that the demand-side uplift is small and
+  # weakly sourced, and that the price-side effect is large, measured, and
+  # runs in the district's favour.
+  # Conservative central: compute is +5 % of OFFICE + LIGHT_INDUSTRY base
+  # at 2030 rising to +20 % at 2055 (linear), at ~10 % category share of
+  # district demand. (derived from IEA + CBRE sources).
+  # DEM-1 (trajectory batch,): converted from the lifetime-
+  # average linear ramp to EXPLICIT per-period multipliers consumed by
+  # Economics.period_demand_multiplier. Normalisation: the 2030 bottom-up
+  # demand calibration (FX-3, BEE-label appliance + office-equipment
+  # norms) already contains 2030-era office IT/compute load, so the
+  # per-period multiplier is the GROWTH of compute intensity RELATIVE TO
+  # 2030 (2030 = 1.000 keeps the calibrated base year byte-exact):
+  #   office+LI uplift ratio r(y) = (1 + u(y)) / (1 + u(2030)),
+  #     u linear 0.05 (2030) -> 0.20 (2055):
+  #   2042: u = 0.122, r = 1.122/1.05 = 1.0686 -> district
+  #         1 + 0.0686 x 0.10 = 1.0069
+  #   2055: r = 1.20/1.05 = 1.1429 -> district 1 + 0.1429 x 0.10 = 1.0143
+  # When multiplier_by_period is present the code SKIPS the lifetime_avg
+  # linear ramp for this driver (no double count); lifetime_avg_multiplier
+  # is retained below for documentation/back-compat only.
+  ai_demand_uplift:
+    enabled: true
+    office_industry_uplift_2030: 0.05
+    office_industry_uplift_2055: 0.20
+    office_industry_share_of_district_demand: 0.10
+    multiplier_by_period:
+      2030: 1.0000
+      2042: 1.0069
+      2055: 1.0143
+    lifetime_avg_multiplier: 1.012   # superseded by multiplier_by_period (docs only)
+
+  # 6 — Dem-5 + V-7 (trajectory batch,): Water-Energy block.
+  # The district carries a 25 kWh/cap/yr water-treatment + groundwater-
+  # pumping baseload (config/demand_norms.yaml public_services, CPHEEO +
+  # ICAR Punjab pump-energy audit). Two opposing per-period drivers:
+  # (a) Groundwater Lift Growth: the Punjab water table keeps falling, so
+  #     lift energy per m3 rises. CGWB Dynamic Ground Water Resources +
+  #     Punjab groundwater assessments report pre-monsoon declines of
+  #     ~0.5-1.0 m/yr in central/SE Punjab blocks (SAS Nagar belt blocks
+  #     assessed over-exploited). (CGWB):
+  #     https://www.cgwb.gov.in/en/dynamic-ground-water-resources-india
+  #     *** Citation Repaired. *** The Url above does Not contain
+  #     the 0.49 m/yr rate or the "worst-affected" naming (recorded
+  #), and cgwb.gov.in fails TLS handshake to automated fetch
+  #     (TLSV1_ALERT_UNRECOGNIZED_NAME), so it could not be re-checked here.
+  #     Both Halves OF The Claim Are Carried Verbatim by Mongabay India
+  #     (, reputable environmental journalism reporting CGWB's own
+  #     measurement), "Accelerating rate of groundwater depletion in Punjab,
+  #     worries farmers and experts", June 2022, opened and quoted
+  #       "Punjab's central and southern districts, such as Barnala, Bathinda,
+  #        Fatehgarh Sahib, Hoshiarpur, Jalandhar, Moga, SAS NAGAR, Pathankot,
+  #        Patiala and Sangrur, are among the most affected as the average
+  #        yearly rate of fall of groundwater levels works out to be
+  #        approximately 0.49 Metre Per Year."
+  #     https://india.mongabay.com/2022/06/accelerating-rate-of-groundwater-depletion-in-punjab-worries-farmers-and-experts/
+  #     Primary Still Worth Fetching IN A Browser (would restore):
+  #     https://www.cgwb.gov.in/old_website/District_Profile/Punjab/SAS%20Nagar.pdf
+  #     Central assumption 0.5 m/yr (conservative peri-urban fringe;
+  #). Baseline dynamic head ~30 m for Mohali-belt municipal
+  #     tubewells ( assumption anchored to CGWB SAS Nagar depth-to-
+  #     water reports). Pumping (lift-proportional) share of the 25
+  #     kWh/cap: ~0.65 (CPHEEO water-supply energy audits - raw-water
+  #     pumping dominates over treatment).
+  #     lift(y) = 1 + 0.65 x (0.5 x (y-2030) / 30)
+  # (b) Rainwater-Harvesting / Greywater-Reuse Credit (V-7, the Vqa-14
+  #     "is monsoon rain useful?" answer; design_factors J.3): harvested
+  #     rain + reused greywater displace pumped VOLUME. Punjab Water
+  #     Resources (Management & Regulation) Act 2020 + GMADA/municipal
+  #     building bylaws mandate RWH on larger plots; CGWB Master Plan for
+  #     Artificial Recharge (2020) and CPHEEO reuse guidance support a
+  #     growing offset in a NEW planned town. INCREMENTAL offset vs the
+  #     2030 norm (which already reflects 2030 practice): 2042 -6%,
+  #     2055 -13% of pumped volume (, derived).
+  #     *** Source Reachable AT Last. *** cgwb.gov.in does not
+  #     resolve/serve from this environment, so the Master Plan was located
+  #     via two working routes and its scale claim read off:
+  #       CGWB, "Master Plan for Artificial Recharge to Groundwater in India
+  #       - 2020". It "envisages construction of about 1.42 crore
+  #       rain water harvesting and artificial recharge structures in the
+  #       country to harness 185 Billion Cubic Metre (BCM)", and is a macro
+  #       plan of structure Types per terrain (check dams, Rooftop Rainwater
+  #       HARVESTING, percolation tanks, sub-surface dykes), shared with the
+  #       states for convergence with MGNREGS/PMKSY.
+  #       full PDF mirror: https://faolex.fao.org/docs/pdf/ind211054.pdf
+  #       PIB summary:     https://www.pib.gov.in/PressReleasePage.aspx?PRID=2147822
+  #     WHAT IT EVIDENCES: that a national artificial-recharge/rooftop-harvest
+  #     programme EXISTS at scale and names rooftop harvesting as a standard
+  #     structure - i.e. it supports the DIRECTION and the plausibility of a
+  #     growing offset in a new planned town. It does NOT contain the -6% /
+  #     -13% path, which stays derived as declared above.
+  #     Original (unreachable here): https://www.cgwb.gov.in/en/master-plan-artificial-recharge
+  #     http://mohua.gov.in/cms/cpheeo.php (CPHEEO manuals)
+  # when corrected the rate to 0.26 (CGWB SAS Nagar measured
+  # midpoint). Proof it was stale: at 0.5 the old arithmetic reproduces
+  # EXACTLY (2042 lift-weighted 1.1300 -> net 1.0622 -> district 1.000485 =
+  # the old "1.0005"; 2055 1.2708 -> 1.1056 -> 1.000824 = the old "1.0008").
+  # This block's own instruction - "Re-derive if any of them changes" - was
+  # not followed. Caught by triaging the config-consumer audit. ***
+  # lift(y)       = (head + decline x years) / head, applied to the PUMPING
+  #                 share only: 1 + (lift - 1) x 0.65
+  # NET water-load: W(y) = lift_weighted(y) x (1 - harvest_offset(y))
+  #   2042: head 30 -> 33.12 m; lift 1.1040; weighted 1.0676; x0.94 = 1.0035
+  #   2055: head 30 -> 36.50 m; lift 1.2167; weighted 1.1408; x0.87 = 0.9925
+  # District effect (water share of district demand = 0.0078):
+  #   2042: 1 + 0.0078 x  0.0035 = 1.000028  -> 1.0000
+  #   2055: 1 + 0.0078 x -0.0075 = 0.999942  -> 0.9999
+  # *** And The Direction Reverses - DO Not Write The Old Sentence. *** This
+  # block used to claim "falling water tables push the load UP faster than
+  # harvesting pulls it down". At the corrected 0.26 m/yr that is FALSE by
+  # 2055: net water load 0.9925, i.e. the harvesting/reuse credit OUTPACES
+  # the deepening lift and the water load ends slightly BELOW its 2030 level.
+  # The honest narrative is now: at Punjab's MEASURED district decline rate,
+  # a new town's own rainwater/greywater programme is enough to cancel the
+  # groundwater-lift penalty within the horizon. Magnitude is small either
+  # way (~0.1% of district demand) and 2030 = 1.0000 exactly, so no headline
+  # figure moves - but the SIGN is a thesis claim and it flipped.
+  # Consumed via multiplier_by_period (per-period table; no lifetime_avg
+  # ramp - this block was born per-period).
+  water_energy:
+    enabled: true
+    baseline_dynamic_head_m: 30
+    # And The District'S Own Measured Figure IS About Half OF IT. ***
+    # Two CGWB documents were obtained and parsed on
+    #   (a) "Dynamic Ground Water Resources of India, 2025" (482 pp) contains
+    #       NO water-level decline rate at all - zero hits for "m/year",
+    #       "m/yr", "water level decline". It reports RESOURCE BALANCE (stage
+    #       of extraction %), not level TRENDS. The 0.49 is not in it.
+    #   (b) CGWB "Plan on Artificial Recharge to Ground Water and Water
+    #       Conservation", Sas Nagar District profile - i.e. Zirakpur's Own
+    #       district. VERBATIM:
+    #         "The long-term trend of water level (2002 to 2011) also shows
+    #          that there is decline in water level on major part of the area
+    #          ranging from 0.16 to 0.35 m/yr except a few isolated patches
+    #          where there is rise at the rate 0.02 to 0.06 m/yr which is
+    #          insignificant."
+    #       https://cgwb.gov.in/sites/default/files/2022-10/sas_nagar_district.pdf
+    # SO The Measured Sas Nagar Range IS 0.16-0.35 m/yr, Midpoint ~0.26 - and
+    # this block uses 0.5, roughly TWICE the district-measured rate.
+    # Direction OF The Error: overstating the decline overstates the growth in
+    # pumping head and therefore in pumping energy, so the model runs the
+    # water-energy nexus HOTTER than the district's own measurements support.
+    # It applies to town and BAU alike, and the water term is ~0.08% of
+    # district cost, so nothing material moves either way.
+    # ***.26, The District Midpoint. ***
+    # 0.5 -> 0.26 m/yr. The rationale he accepted: it is MEASURED, it is
+    # SITE-SPECIFIC, and "we used the number published for our own district"
+    # is a stronger viva answer than a state average that turned out to be
+    # so the mistake stays visible rather than being quietly deleted.
+    # Why The Midpoint And Not A Bound. CGWB gives a Range across the district
+    # (0.16-0.35 m/yr over "major part of the area"), not a distribution, so
+    # no bound is the "measured" value - each end is one edge of a spatial
+    # spread. Three reasons the midpoint is the right central case here:
+    #   (1) The town sits somewhere inside that district, unknown where, so
+    #       the expected value over the area IS the midpoint.
+    #   (2) It is symmetric - neither optimistic nor pessimistic - which is
+    #       what a central case should be when the driver is an INPUT to the
+    #       thesis rather than the thing being argued.
+    #   (3) The spread is worth almost nothing: across the FULL 0.16-0.35
+    #       range the 2055 district-demand multiplier moves 1.0006 -> 1.0013,
+    #       i.e. 0.07% of demand end to end. Picking a bound would buy
+    #       conservatism that cannot be measured in the headline while
+    #       costing the ability to say "district midpoint".
+    # If a bound were ever wanted, 0.35 (upper) is the pessimistic pick -
+    # faster decline = deeper lift = more pumping energy. That is the
+    # direction a conservative energy model would err in, and it is a
+    # one-line change with the derivation below re-run.
+    # The Table Below IS Now Derived From This Rate, Not Declared (,
+    # per.
+    # And Deriving IT Exposed That The Old Table Matched Neither Rate: with
+    # d = 0.5 the chain gives 1.0018 at 2055, with d = 0.26 it gives 1.0010,
+    # and the file said 1.0008. So the multiplier was a free-standing declared
+    # number that no longer tracked the parameter sitting three lines above it
+    # - the exact failure mode where a config LOOKS derived and is not.
+    # Chain, in full, so it can be checked by hand:
+    #   head(y)        = baseline_dynamic_head_m + decline x (y - 2030)
+    #   pumping uplift = head(y)/head(2030) - 1
+    #   water-energy   = uplift x pumping_share_of_water_energy
+    #   net of harvest = x (1 - incremental_harvest_offset_by_period[y])
+    #   district       = x water_share_of_district_demand
+    #   2042: (33.12/30 - 1) = 0.10400 x 0.65 = 0.06760 x 0.94 = 0.063544
+    #         x 0.0078 = 0.00049564  ->  1.0005
+    #   2055: (36.50/30 - 1) = 0.21667 x 0.65 = 0.14083 x 0.87 = 0.122525
+    #         x 0.0078 = 0.00095570  ->  1.0010
+    # Net Effect OF The Whole Change: 2042 unchanged at 1.0005, 2055 1.0008 ->
+    # 1.0010, i.e. +0.02% on 2055 district demand. Immaterial, as flagged -
+    # this is a PROVENANCE fix that happens to also make the block internally
+    # consistent, not a number that moves the thesis.
+    # Also Note: what the 2025 Dynamic Resources report Does give is stronger
+    # evidence for the water-stress narrative than the decline rate ever was -
+    # Punjab extracts 136.75% of annual recharge, with 63.64% of assessment
+    # units over-exploited. SAS Nagar itself is at 116.90%.
+    # ===================================================================
+    # Every Load-Bearing Claim IN The Paragraph Below Failed Verification.
+    # The CGWB "Dynamic Ground Water Resources of India, 2025" report (482 pp)
+    # was obtained and parsed in full:
+    #   - "0.49 m/year" IS NOT IN IT. Zero hits for "m/year", "m/yr", "metre
+    #     per year", "cm/year", "water level decline", "decline of". That
+    #     report assesses RESOURCE BALANCE (recharge vs extraction, as a
+    #     percentage), not water-LEVEL trends in metres. The 16 hits on "0.49"
+    #     are coincidental (10.49%, 18650.49 and similar).
+    #   - "Sas Nagar among the worst-affected" Inverts The Picture. Sas Nagar's
+    #     Stage of Ground Water Extraction is 116.90% - over-exploited, yes,
+    #     but BELOW Punjab's own state average of 136.75%, and far below
+    #     Patiala at 208.53%.
+    # This is the second citation in this model written from memory and never
+    #). Both looked plausible and both named real institutions.
+    # DO Not RE-Cite The Paragraph Below. It is kept only so the correction
+    # is auditable.
+    # ===================================================================
+    # CITATION: 0.5 m/yr was uncited. It is essentially
+    # EXACT against the Central Ground Water Board, which puts Punjab's average
+    # yearly fall in groundwater level at **0.49 m/year** (a separate study
+    # gives 0.43 m/yr over the last 22 years, so 0.5 sits at the top of the
+    # measured band). CGWB also reports ~28 bcm extracted against ~17 bcm
+    # available, and projects Punjab's groundwater dropping below 300 m by 2039
+    # if depletion continues. Crucially For This Site: CGWB's block-wise
+    # assessment names **SAS Nagar** among Punjab's most over-exploited
+    # districts - that is Zirakpur's own district, so the state figure is if
+    # anything conservative here. (central government agency), reported
+    # via Mongabay India and The Tribune.
+    # https://india.mongabay.com/2022/06/accelerating-rate-of-groundwater-depletion-in-punjab-worries-farmers-and-experts/
+    # 0.26 = midpoint of the CGWB Sas Nagar district-profile measured range
+    # 0.16-0.35 m/yr (, verbatim quoted above, doc opened + claim
+    #. WAS 0.5, cited to a CGWB "0.49 m/yr" that the
+    # report does not contain - see the retraction block above.
+    water_table_decline_m_per_year: 0.26
+    pumping_share_of_water_energy: 0.65
+    incremental_harvest_offset_by_period: {2030: 0.00, 2042: 0.06, 2055: 0.13}
+    water_share_of_district_demand: 0.0078
+    # DERIVED from the four values above - arithmetic written out in the
+    # comment block. Re-derive if any of them changes.
+    multiplier_by_period:
+      2030: 1.0000
+      2042: 1.0000    #: was 1.0005 (derived at the retracted 0.5 m/yr)
+      2055: 0.9999    #: was 1.0010; now BELOW 1 - harvesting outpaces the lift
+
+# Combined lifetime demand factor. RESTATED after the citation
+# audit to. The old line here read "1.43 (pop) x 1.0 (EV) x
+# 1.03 (cooling) x 1.03 (cooking) x 1.07 (income) x 1.0143 (AI) x 1.0008
+# (water) = 1.71 at 2055" - it also DOUBLE-COUNTED cooling, which had
+# already removed from this stack and moved onto the cooling term alone.
+# CURRENT stack, 2030 -> 2055 endpoints, as the code actually multiplies them:
+#   population 1.1022  (was 1.4295 - was 3-4x its own cited source)
+#   EV         1.0000  (superseded; counted at income resolution instead)
+#   cooking    1.0394  (was 1.030)
+#   income     1.1426  (was 1.070 - was ~half, wrong shares AND wrong ratios)
+#   AI         1.0143  (unchanged - the one block that was properly cited)
+#   water      1.0008  (unchanged)
+#   -> period_demand_multiplier(2055) = 1.3288   (was 1.5993, -16.9%)
+#      period_demand_multiplier(2042) = 1.1551   (was 1.2930, -10.7%)
+# SEPARATELY, on the cooling term only: cooling_warming_multiplier
+#   2042 1.0576, 2055 1.1200 (was 1.096 / 1.200, baseline-year fix).
+# Every Uncited Number IN This Block Turned Out Wrong; the only one carrying
+# URLs and a Tier label (AI) was the only one that survived unchanged.
+# STILL UNCITED, next job: the 12pp/5pp income shift, and the water block's
+# 0.5 m/yr water-table decline and 0.0078 district share.
+
+# District composition for the MSc thesis case study.
+# All district-level inputs live in this file. Edit the numbers, save, and
+# rerun - no code changes needed. When real Indian Census / NSSO / PMAY-U /
+# Punjab Master-Plan data arrives, drop it in here.
+# Anything marked "PLACEHOLDER" is a working assumption to be replaced.
+
+# ---------------------------------------------------------------------------
+# Site reference
+# ---------------------------------------------------------------------------
+site:
+  name: "Zirakpur-class peri-urban district (notional)"
+  latitude: 30.64
+  longitude: 76.82
+  target_year: 2030
+  total_population: 250000          # Stage-: Raised 100k -> 250k = the 2030 Design
+                                    # 25 km2 = 10,000/km2 gross, the realistic Indian-city band (Chandigarh
+                                    # ~9,250/km2, Census 2011). The frozen 100k "final 200 m model"
+                                    # is the LOW-DENSITY comparison point. Growth = migration/
+                                    # build-out, not natural increase (NCP/MoHFW 2020 projections: Punjab
+                                    # 3.27 crore by 2036, ~0.4-0.5%/yr in the 2030s,
+                                    # https://nhm.gov.in/New_Updates_2018/Report_Population_Projection_2019.pdf).
+                                    # Full derivation + double-count guard: config/demographics.yaml.
+                                    # (Historic note: Zirakpur MC's own 2030 projection ~156,000; the old
+                                    # 100k was a notional scale - see DATA/punjab_power_and_demand_notes.md.)
+  total_households: 54346           # = 4-tier build at 250k (demographics.yaml household_size_by_income):
+                                    # EWS 10,000 + LIG 10,417 + MIG 25,000 + HIG 8,929 = 54,346; weighted
+                                    # mean 4.60 p/HH = the Punjab anchor (MoSPI NSS 78th Round).
+                                    # Stage- acceptance: the FAR-derived floor stock is sized so the
+                                    # bottom-up household count reconciles to this by construction (the
+                                    # 200 m model's documented 8.5% pp/HH gap closes at the re-grid).
+  area_km2: 25
+  # STAGE-: grid resolution moved 200 m -> 100 m per
+  # dimensions - core/grid.py make_thesis_grid and core/requirements.py
+  # cell-area arithmetic both read these (no more hardcoded 200 m constants).
+  grid_n_rows: 50
+  grid_n_cols: 50
+  cell_size_m: 100                  # 1 cell = 1 ha (10,000 m2); 50 x 50 = 2,500 cells = 25 km2
+  prevailing_wind_summer: NW        # used by ventilation scoring
+  prevailing_wind_winter: NW
+
+# ---------------------------------------------------------------------------
+# Land-use area targets (fraction of total cells in the master plan).
+# Sum should be close to 1.0. Validation in core/config.py rejects > 1% drift.
+# ---------------------------------------------------------------------------
+land_use_targets:
+  # targets = derive_requirements cell counts at 250k / 2,500 one-ha cells,
+  # rounded up to the nearest 0.001 (so every target >= the required minimum).
+  # Verified run: core/requirements.py -> res 44/125/224, school 85,
+  # health 6, office 6, mall 17, highstreet 7, restaurant 2, hotel 1, industry
+  # 39, warehouse 17, public 9, religious 63, parking 74, blue 100, solar 225;
+  # TOTAL 1,344 + 291 locked arterial road cells = 1,635 -> 865 cells residual.
+  # The Compact-Town-IN-A-Green-Belt Structure:
+  #   * residential total 0.158 = 15.8% of site - inside
+  #     (85% flats FAR 2.0-3.0 + 15% plotted kothi colony FAR 1.2 by household).
+  #   * road 0.12 at = the locked arterial skeleton (291/2500 = 11.6%) only.
+  #     The full hierarchy (collectors + locals + cycle/foot ROW) arrives at
+  #     STAGE and lands between
+  #     decision; the reserve meanwhile sits inside open_space below.
+  #   * open_space 0.458 decomposes as: ~0.15 parks/playgrounds INSIDE the town
+  #     (375 cells; norm minimum = 300 at URDPFI 12 m2/cap) + ~0.08-0.16
+  #     road/path reserve + ~0.15-0.22 peri-urban green/agri/orchard belt (the
+  #     densification dividend of FAR 2.0 at 250k: the town proper needs only
+  #     ~55-60% of the 25 km2). Gross density 10,000/km2 sits on the whole
+  #     site; developed-core density ~18,000/km2 (Indian-city core band).
+  #   * public & semi-public + leisure: school 0.034 + healthcare 0.003 +
+  #     public_services 0.004 + religious 0.025 = ~6.6% + blue 0.04 = ~10.6%,
+  #     matching
+  #     URDPFI demand-driven at 250k - not over-provisioned).
+  #   * solar_farm 0.09 = 225 one-ha cells = 225 MWp reserve.
+  residential_low: 0.018            # 44 cells - EWS/LIG flats, Far 2.0 (+3.0 on spine)
+  residential_mid: 0.050            # 125 cells - MIG flats, FAR 2.0 (+3.0 on spine)
+  residential_high: 0.090           # 224 cells - plotted kothi colony, FAR 1.2 (fixed form)
+  school: 0.034                     # 85 cells - 50 primary + 34 secondary (URDPFI counts at 250k)
+  office: 0.0036                    #.13: 9 cells - FAR 3.0 CBD (25.2k office workers x 10 m2; Mohali IT-corridor mix 0.28, demographics.yaml)
+  shopping_centre: 0.007            # 17 cells - FAR 3.0 malls (URDPFI 4 m2/cap x 50% mall share)
+  retail_highstreet: 0.003          # 7 cells - FAR 3.0 mixed-use bazaar spine
+  restaurant_food_service: 0.0016   #.7: 4 cells (60 seats/1000, NRAI-anchored; demand_norms.yaml)
+  hotel_guesthouse: 0.0016          #.7: 4 cells (11 rooms/1000, airport-corridor premium; demand_norms.yaml)
+  healthcare: 0.0036                #.8: 9 cells - 5 Uphc + the 300-bed general-hospital Campus (2x2 Locked, layout/f6_locks.py; Iphs/URDPFI at 250k)
+  light_industry: 0.014             #.13: 35 cells - FAR 1.25 estates (industry mix 0.16)
+  warehouse_cold_storage: 0.006     #.13: 15 cells - FAR 0.8 high-bay (follows the industry-worker cut)
+  public_services: 0.004            # 9 cells - civic campus
+  religious: 0.010                  #.14: 25 cells = URDPFI ~1 facility/10k (0.4 m2/cap; demand_norms.yaml) - was 63 = a 100k-era calibration carried over
+  parking_lot: 0.007                # Stage-.3 v2: 17 cells - Fleet-Constrained demand
+                                    # (was 74 URDPFI-stacked; a car cannot occupy two lots at once -
+                                    # peak public demand ~4,938 ECS at ~305 ECS/ha; core/parking_demand.py,
+                                    #. Grows 23 (2042) / 33 (2055) via parking_expansion_*
+                                    # reserve tags near the job-heavy sectors.
+  open_space: 0.3956                #: +0.0156 absorbed from the amenity re-targets (religious -38, industry -4, warehouse -2 cells vs hotels +3, restaurants +2, office +3, healthcare +3). STRUCTURED (,; tags via
+                                    # layout/open_space_structure.py, rendered distinctly in the viewer):
+                                    # ~0.12 parks/playgrounds (URDPFI 12 m2/cap hierarchy) + PHASED-
+                                    # DEVELOPMENT RESERVE (2042/2055 build-out land bank) + greenways/belt.
+                                    # 0.463 -> 0.413: 125 cells moved to the solar expansion block.
+                                    # STAGE-: 0.413 -> 0.297 - the ~0.12 " street/path
+                                    # conversion reserve" was consumed AS PLANNED by the sector collector
+                                    # grid (289 cells moved into `road` below).
+                                    # STAGE-: 0.297 -> 0.380 - the solar-farm grant cut
+                                    # cut (-0.023) return to green; re-tagged inside it: solar_expansion_*
+                                    # (+50/+50) + parking_expansion_* growth parcels (phased_expansion.py)
+                                    # + the.4 locked BIG PARKS / greenway spine + the agri/orchard
+                                    # belt (productive peri-urban land until phased development).
+  blue_space: 0.040                 # 100 cells - 4 m2/cap ponds/tanks/lakes (URDPFI 1-2% band upper).
+                                    # Stage-: includes the 43-cell locked Northern Canal corridor
+                                    # (Q23,; layout/canal_corridor.py) - the SA
+                                    # places the remaining ~57 pond cells freely.
+  road: 0.231                       # STAGE-: arterial skeleton (291) + the LOCKED sector
+                                    # optimisation.sector_size_cells) = 580 locked = 23.2%. Target held
+                                    # DELIBERATELY just BELOW the locked share (the pattern) so the
+                                    # SA's under-supply bias can never GROW roads; requirements_trim
+                                    # remains the backstop. NOTE this is a CELL-count target - the honest
+                                    # road metric is ROW AREA (layout/road_network.py: arterial 45 m /
+                                    # collector 24 m / local 12 m of a 100 m cell), which lands ~11% of
+                                    # developed area for plain-area cities + paths).
+  solar_farm: 0.080                 # STAGE-.1 v2: 200 cells = the 2030
+                                    # LAND GRANT (8% of site; was 350/14%, then a 150-ha draft).
+                                    # (f3_solar_land_sweep.md: 200 ha -> +6.8% 2030 cost vs 350 ref;
+                                    # the last 100 ha of the old grant bought only 1.8% =.
+                                    # PHASES to 250 ha (2042) / 300 ha (2055) via solar_expansion_*
+                                    # tags; the LP builds within land x TRJ-1 density.
+
+# ---------------------------------------------------------------------------
+# Household income mix at the LAND-USE level (3 residential land-uses).
+# (Opus 4.8): the 4 demographic tiers EWS/LIG/MIG/HIG live in
+# config/demographics.yaml; here we keep the 3 residential LAND-USE shares the
+# layout + energy LP read (EWS+LIG -> residential_low, MIG -> mid, HIG -> high).
+# So low = EWS(0.20)+LIG(0.20) = 0.40; mid = MIG 0.45; high = HIG 0.15.
+# (cfg.income_shares is only validated/printed; the computational shares come
+# from demographics.households_by_income aggregated in core/requirements.py.)
+# ---------------------------------------------------------------------------
+income_shares:
+  low: 0.40                         # EWS 0.20 + LIG 0.20 (see demographics.yaml)
+  mid: 0.45                         # MIG
+  high: 0.15                        # HIG
+
+# ---------------------------------------------------------------------------
+# Average floor area per household in m^2 (per residential LAND-USE).
+# Semantics: the DEMAND-BEARING dwelling share of cell gross floor area
+# (carpet for the PMAY-U-defined low tier, where carpet is the statutory
+# measure; built-up for the market-defined mid/high tiers, where W/m2
+# cooling/base intensities apply over built-up area).
+# norm citations (values unchanged; they already sit inside the cited
+# bands - the demand excess sat in the cooling W/m2 target-chase,
+# reverted in economics.yaml cooling_technologies):
+#   mid 100 m^2 BUILT-UP = low end of the 2-3BHK market band 100-120 m2
+#     (~1,075-1,300 sqft): ANAROCK top-7-city average flat size ~1,300 sqft
+#     super built-up 2023-24 (https://www.anarock.com - Research section; the
+#     /research path 404s as of.
+#     ** Tier Downgraded -> Tier 3 (declared). Two reasons,
+#     not one: the Url is a Homepage and evidences no flat size, And Anarock is
+#     a commercial real-estate consultancy, i.e. trade material rather than a
+#     reputable-research under this project's own scheme. The flat-size
+#     figure is retained as a declared planning assumption. **);
+#     peri-urban Tri-city (Zirakpur/Mohali) 2BHK listings run BELOW metro
+#     averages  - hence the low end. Pmay-U Clss MIG-I carpet cap
+#     was 160 m2 (ceiling, not typical context).
+#   high 200 m^2 BUILT-UP = centre of the premium 3-4BHK band 180-220 m2
+#     (~1,950-2,350 sqft; ANAROCK premium-segment sizing).
+#   low 42.7 m^2 Carpet = EWS 30 (Pmay-U standard, min 30 max 45)
+#     / LIG 55 (CLSS cap 60; built DPRs ~45-55)
+#     blended 0.49/0.51 by the EWS/LIG household split.
+#     ** TIER SPLIT was "" against the pmaymis.gov.in
+#     portal Homepage, which evidences nothing. The EWS 30 / LIG 60 carpet-area
+#     caps ARE and are now verified from the real document - PMAY-U
+#     Operational Guidelines, opened and parsed, verbatim: "EWS: Annual
+#     Household Income up to Rs.3,00,000 and house sizes upto 30 sq.m. -
+#     LIG:... upto 60 sq.m", with the Clss table giving EWS 30 / LIG 60.
+#     https://pmay-urban.gov.in/uploads/guidelines/Operational-Guidelines-of-PMAY-U.pdf
+#     What stays TIER 3 (declared) is the "built DPRs ~45-55" range and the
+#     0.49/0.51 blend - neither appears in the guidelines. **
+# Persons/household: the Top-Down district figure is 4.6 (MoSPI Nss 78th
+# Round, Punjab average) -> site.total_households 21,739. The
+# BOTTOM-UP household count from these dwelling sizes over the frozen
+# seed-42 floor stock is 19,898 -> 5.03 persons/HH; closing the ~8.5% gap
+# at cited dwelling sizes needs MORE residential floor area (a Stage F
+# re-anneal item, documented since). Forcing 4.6 bottom-up
+# would need mid ~89 / high ~163 m2 - BELOW the cited market bands - so
+# the gap is reported, not hidden (FX-3 epistemology: inputs cited,
+# outputs emergent). NOTE: demand is floor-area-based, not household-
+# count-based (core/building.py), so these per-HH values move household
+# counts ONLY; district energy demand is set by floor_area_per_cell_m2
+# x the economics.yaml intensity tables.
+# ---------------------------------------------------------------------------
+household_floor_area_m2:
+  low: 42.7                         # EWS 30 / LIG 55 carpet blend; Pmay-U (blend shares survive the
+                                    # 250k raise: EWS 10,000 / LIG 10,417 HH = 0.49/0.51, same as at 100k)
+  mid: 100                          # 2-3BHK built-up, low end of cited 100-120 band (MIG)
+  high: 300                         # Stage-: HIG moves from premium Flats (200 m2)
+                                    # to an INDEPENDENT-HOUSE plotted colony ("compact kothi/builder-floor",
+                                    # Mumbai-colony ask): 300 m2 built-up per household on ~125-175 sq-yd
+                                    # plots, G+2/G+3, net colony FAR 1.2 (floor_area_per_cell below). 300 =
+                                    # lands inside his 13-16%-of-site band. Provenance: PUDA plotted-
+                                    # residential class ~1.9-2.0 sanctioned FAR ( instrument, exact
+                                    # values pending the F0_FAR_TABLE.md section-5 verification prompt);
+                                    # 125-250 sq-yd kothi/builder-floor G+3 is the prevailing Zirakpur/
+                                    # Mohali plotted pattern (, market listings). Demand consequence
+                                    # (FX-3 Option C epistemology - inputs cited, output emergent): HIG
+                                    # floor/HH rises 1.5x, so per-capita demand drifts above the pure
+                                    # population scaling; reconciled in the Stage- FX-3 check.
+
+# ---------------------------------------------------------------------------
+# Building height tiers (m). The MEDIUM tier is the reference; the floor area
+# per cell at the medium tier is given below. SHORT and TALL scale that
+# baseline by a multiplier that reflects how many floors fit in the tier.
+# ---------------------------------------------------------------------------
+height_tiers:
+  ground: 7.0                       # G+1/G+2 solo house / builder floor (Baseline 2 v7 only)
+  short: 12.0                       # 4 storeys
+  medium: 18.0                      # 6 storeys (reference)
+  tall: 27.0                        # 9 storeys
+
+floor_to_floor_m: 3.0
+
+# Multiplier applied to floor_area_per_cell_m2 when that cell is at the tier.
+# Approximately = floors_in_tier / floors_in_medium.
+height_multipliers:
+  ground: 0.45                      # ~G+1.5 avg on a partially built-out colony (B2 v7 only;
+                                    #, satellite built-out share - vacant plots interleaved)
+  short: 0.67                       # 4/6 floors
+  medium: 1.00
+  tall: 1.50                        # 9/6 floors
+
+# ---------------------------------------------------------------------------
+# Floor area per 100 m x 100 m cell (1 ha) at the MEDIUM height tier (m^2 gross).
+# Stage- RE-Derivation from the Ratified Far (decision A2,
+# This REPLACES the legacy 6,000 m2-per-200m-cell stock (implied FAR ~0.15,
+# ~13x below the PUDA/GMADA regulatory record - see table section 1).
+# How The Classes Map (mechanics in core/building.py):
+#     PUDA plotted ~2.0 / URDPFI 1.0-2.5 / Naya Raipur 1.30-1.8 corroboration).
+#     The post-anneal spine pass (layout/spine_gradient.py) promotes arterial-
+#     adjacent cells to Tall (x1.5 = 30,000 = Net Far 3.0, the Puda 1:3 group-
+#     housing envelope on the spine) floor-compensated by SHORT edge demotions
+#     (x0.67 = 13,400 = Far 1.34, an under-cap edge build) at 2 Tall : 3 Short,
+#     conserving district floor = the FX-3 requirement (Bertaud gradient inside
+#   * high residential = the Plotted Hnw Colony: a Fixed
+#     built form (12,000 = NET FAR 1.2, G+3 at 12 m via typical_height_m,
+#     ~40 kothis of 300 m2 per ha cell, ~30% ground coverage) - excluded from
+#     tier scaling in generator/optimiser exactly like facility categories, so
+#     requirements' cell arithmetic needs no tier-awareness. PUDA plotted class
+#     ( instrument); compact-kothi form (Zirakpur market pattern).
+#   * commercial class (office / mall / highstreet / hotel): 30,000 = NET FAR 3.0
+#     (multiplier 1.0) and take height from the category's typical_height_m, so
+#     these floors are EXACT (no tier drift).
+#   * facility-sized categories (count-driven, 1 facility = 1 building = 1 cell):
+#     school 3,500 (= 295,000 m2 over 84 URDPFI facilities at 250k: 50 primary
+#     x 2,500 + 34 secondary x 5,000; a 1-ha campus at FAR 0.35 with playfields);
+#     healthcare 3,600 (= 21,500 m2 over 6 IPHS facilities: 5 UPHC x 1,500 +
+#     1 UCHC x 14,000, blended - splits the typologies).
+#   * industrial FAR 1.25 (12,500) per URDPFI/state industrial-estate band
+#     ( derived); warehouse 0.8 (8,000) single-volume high-bay logistics
+#; public services 0.6 (6,000) civic campus with grounds (,
+#     URDPFI socio-cultural plot norms); religious 0.4 (4,000) prayer hall +
+#     forecourt complex; restaurant/F&B 1.0 (10,000) low-rise strips
+#. These below-cap values are USE-DRIVEN forms, legal under the
+#     sanctionable envelopes.
+# Sanity (checked in the Stage- FX-3 reconciliation): Net Far on the developed
+# NOT total-floor / full 25 km2 (that is ~0.4-0.5 at 250k because ~40-45% of the
+# site is deliberate public realm / green / solar reserve - register 0e note).
+# ---------------------------------------------------------------------------
+floor_area_per_cell_m2:
+  low_income_residential: 20000     # NET FAR 2.0 (ratified A2 base class)
+  mid_income_residential: 20000     # NET FAR 2.0 (ratified A2 base class)
+  high_income_residential: 12000    # Net Far 1.2 plotted colony; Fixed Form (no tier scaling):
+                                    # height from the category's typical_height_m (12 m G+3),
+                                    # same mechanism as non-residential categories
+  school: 3500                      # facility-sized campus (URDPFI counts; FAR 0.35)
+  office: 30000                     # NET FAR 3.0 (ratified commercial class)
+  shopping_centre: 30000            # NET FAR 3.0 (ratified commercial class)
+  retail_highstreet: 30000          # NET FAR 3.0 mixed-use bazaar block (ground retail + floors above)
+  restaurant_food_service: 10000    # FAR 1.0 low-rise F&B strip
+  hotel_guesthouse: 30000           # NET FAR 3.0 (commercial class)
+  healthcare: 3600                  # facility-sized (Iphs Uphc/Uchc blend)
+  light_industry: 12500             # FAR 1.25 industrial-estate plotted
+  warehouse_cold_storage: 8000      # FAR 0.8 high-bay logistics
+  public_services: 6000             # FAR 0.6 civic campus with grounds
+  religious: 4000                   # FAR 0.4 prayer hall + forecourt complex
+
+# ---------------------------------------------------------------------------
+# Rooftop PV acceptance (willingness to host).
+# Fraction of usable roof area that is realistically deployable for PV given
+# ownership, structural, aesthetic, and behavioural constraints. Without
+# subsidy, residential acceptance is much lower than commercial.
+# Each fraction below is derived, and its derivation is in the comments on
+# the value it belongs to. Sources: CEEW IRES residential energy survey,
+# Census 2011 roof-material tables, NITI Aayog India Energy Dashboard 2024.
+# ---------------------------------------------------------------------------
+pv_acceptance:
+  #: AAP is OFF in the production baseline (see
+  # economics.yaml grid: import_tariff_subsidy_fraction: 0.0). AAP is a
+  # short-tenure state scheme (term ends Mar 2027) and is not defensible
+  # over a 2030-2055 capacity-planning horizon, so it is a SENSITIVITY
+  # case only. The AAP-interaction calibration is therefore
+  # partly superseded; low-income is recalibrated for the AAP-off world.
+  # - Low-income: with AAP off, EWS households pay the slab tariff, so
+  #   rooftop PV regains a real ROI. Recalibrated 0.15 -> 0.25 BY DERIVATION
+  #   (NOT simply reverting to the pre-AAP 0.30): structural ceiling =
+  #   home-ownership ~0.70 x PV-suitable RCC-roof fraction ~0.65 ~= 0.45
+  #   (Census 2011 roof-durability tables); x post-PMSGY adoption
+  #   willingness for capital-constrained EWS ~0.55 (CEEW Ires). 0.45 x
+  #   0.55 ~= 0.25..
+  # - Mid-income: ~400 kWh/mo. PV Roi without AAP. 0.45. Note: this was
+  #   AAP-suppressed from 0.50 and may warrant 0.50 for AAP-off consistency
+  # - HIGH-income: ~800 kWh/mo at full tariff. Strong PV ROI + status/
+  #   aesthetic factors. 0.70 (empirical high-income North India uptake;
+  #   unaffected by AAP removal — high-income always paid full tariff).
+  # Sources: Niti Aayog India Energy Dashboard 2024, CEEW Ires / Residential
+  # Energy Survey, Census 2011 roof-material tables.
+  # Ownership Correction: EWS/LIG rooftop PV is Government-owned under a
+  # proposed social-rental "council housing" model (India ARHC + Western council precedent):
+  # the gov owns the housing + roof + PV, contracts a RESCO for build + 25-yr O&M, and residents
+  # are tenants paying a minimal ~Rs 3/kWh tariff (SECI RESCO L1 anchor). The resident affordability/
+  # willingness barrier is REMOVED, so acceptance = the gov-mandated deployment fraction, NOT the old
+  # resident-financed 0.45 x 0.55 = 0.25. Capped by roof multi-use (water tanks / clothes-drying /
+  # access / future vertical extension) at ~0.70; 0.85 is the elevated-mounting (PV-over-deck) upper
+  # case for sensitivity. designed-policy (mechanisms: PMSGY, SECI RESCO, Chandigarh
+  low_income_residential: 0.70     # (ownership correction): gov-owned council/ARHC/RESCO
+                                   # model — gov deploys EWS rooftop PV (roof-multi-use capped; 0.85 = elevated-
+                                   # mounting sensitivity). Financed at the gov/social rate via the per-owner
+                                   # blend (see economics.yaml rooftop_owner_weights + building_ownership above).
+                                   # EWS residents pay a minimal ~Rs3/kWh tariff (Stage E transfer, NOT a system
+                                   # cost). Aggregate impact ~FLAT (saturation finding equity -> Stage E).
+  mid_income_residential: 0.45  # HELD at 0.45 rather than raised to 0.50
+                                # for AAP-off consistency. 0.45 is the
+                                # lower of the two defensible values, so it
+                                # understates rooftop on the largest
+                                # residential band and therefore understates
+                                # the district's own headline. Raising it
+                                # would improve the result and would require
+                                # re-solving every pinned figure.
+  high_income_residential: 0.70
+  school: 0.85                      # public mandate raises acceptance
+  office: 0.80
+  shopping_centre: 0.85
+  retail_highstreet: 0.60           # split ownership of strip retail -> moderate
+  restaurant_food_service: 0.55
+  hotel_guesthouse: 0.55
+  healthcare: 0.55
+  light_industry: 0.85
+  warehouse_cold_storage: 0.90
+  public_services: 0.75
+  religious: 0.0                    # no rooftop PV on gurudwaras / temples / mosques -
+                                    #   dome geometry, aesthetic constraint, sacred-space convention
+                                    #. Was 0.50; ~92 religious cells x
+                                    #   ~3 kWp/cell = ~280 kWp lost. Compensated by other surfaces.
+
+# ---------------------------------------------------------------------------
+# (OWNERSHIP CORRECTION): per-category building/PV owner. Drives the
+# rooftop-PV financing discount rate (owner -> actor -> discount_rates) + reflects
+# who deploys the PV. gov = government/RESCO (proposed social-rental housing + public
+# buildings, cheap social capital); rwa = resident welfare assoc (SolShare apartments);
+# private = corporate/individual (self-financed); trust = religious (no PV).
+# owner -> actor: gov->social_planner (~5%), rwa->rwa_pooled (8.5%), private->private_high
+# (10%), trust->social_planner. Sources: data_calibration_plan.md S11 (ownership tiers);
+# financing precedents PMSGY / SECI RESCO / Delhi Rwa subsidy (see QUESTIONS_AND_FIXES_REGISTER.md).
+# ---------------------------------------------------------------------------
+building_ownership:
+  low_income_residential: gov        # social-rental (ARHC/council) + RESCO rooftop PV
+  mid_income_residential: rwa        # RWA-pooled apartments (SolShare)
+  high_income_residential: private   # residents self-own
+  school: gov
+  public_services: gov
+  healthcare: gov                    # institutional (mandated backup); gov/RESCO PV
+  office: private
+  shopping_centre: private
+  retail_highstreet: private
+  restaurant_food_service: private
+  hotel_guesthouse: private
+  light_industry: private
+  warehouse_cold_storage: private
+  religious: trust                   # no rooftop PV (pv_acceptance 0.0)
+
+# ---------------------------------------------------------------------------
+# PV module efficiency (NEW - replaces the hardcoded "/6.0" rule
+# in Building.deployable_pv_kwp).
+# Module efficiency converts m^2 of installed panel area into kWp nameplate
+# (under STC: 1000 W/m^2 irradiance). For typical mono-Si:
+#   * 2024 commodity panels: 18-19%
+#   * Modern (TOPCon / HJT): 20-22%
+#   * Premium / BIPV-grade: 22-23%
+# We use 0.20 as the 2030-real central estimate, defensible for India
+# residential and small-commercial deployments (matches MNRE technical
+# benchmark trajectory).
+# This parameter is ORTHOGONAL to:
+#   * pv_acceptance (above) - what fraction of roof is usable for PV given
+#     ownership / aesthetics / structural / HVAC routing constraints.
+#   * pv_capacity_factor (in economics.yaml) - kWh produced per kWp installed
+#     per slice, driven by irradiance + temperature + soiling.
+#   * biosolar / vegetation / dust / degradation multipliers (Stage C round 3
+#     in economics.yaml) - all multiply YIELD (kWh/kWp), not installed kWp.
+# Ground-mount module efficiency is documented in demand_norms.yaml
+# (ground_mount_kwp_per_m2 = 0.10 = land-density, NOT pure panel efficiency:
+# folds in row-spacing, access roads, inverter pads).
+# ---------------------------------------------------------------------------
+# FIX: was 0.20, a hand-set scalar that
+# disagreed with the model's OWN module mix. economics.yaml
+# technologies.rooftop_pv.module_types declares 65% mono-PERC at 0.21,
+# 25% poly-Si at 0.17 and 10% thin-film CdTe at 0.14 - a share-weighted
+# 0.1930. The A18 mix block claims its blended values "back-feed into"
+# the live scalars; they never did (pv_module_mix_summary had zero
+# callers). Adopting 0.1930 makes module_types the single source of truth
+# and reduces the district rooftop ceiling ~3.5% (133,771 -> ~129,089 kWp),
+# i.e. it removes panels that would not physically fit on the roofs.
+rooftop_module_efficiency: 0.1930
+
+# ---------------------------------------------------------------------------
+# Permeability convention.
+# Documents the model's assumption about which cells allow which movements.
+# Read by core/config.py and printed in run.py for clarity.
+# ---------------------------------------------------------------------------
+permeability:
+  pedestrian: "all_cells"           # walking distance through any adjacent cells
+  bicycle: "all_cells"
+  vehicle: "road_only"              # cars / buses follow ROAD cells
+  hv_cable: "road_only"             # primary electrical infra on roads
+  lv_cable: "all_cells"             # intra-block / intra-cluster wiring
+
+# ---------------------------------------------------------------------------
+# Simulated annealing optimiser settings.
+# These tune the search but do NOT change the model's physics. Aggressive
+# values (more iterations, slower cooling) explore more but cost compute.
+# ---------------------------------------------------------------------------
+optimisation:
+  initial_seed_archetype: chandigarh_sector   # starting point for the search
+  # STAGE-: Chandigarh sector size in cells (100 m each) for
+  # the PRE-anneal locked collector grid (layout/sector_structure.py laid
+  # per arterial band, no sliver sectors). 8 = ~800 m sectors, the winner of
+  # scripts/f3_sector_size_sweep.py over {5,6,8,10,12}: total ROW 21.3% of
+  # walkability 0.835, and the truest match to the real Chandigarh sector
+  # module ~800 x 1200 m (Chandigarh Master Plan 2031 sector grid,
+  # https://chandigarh.gov.in/departments/chandigarh-master-plan-2031).
+  sector_size_cells: 8
+  # STAGE-: 2500 -> 15000 for the 50x50 re-anneal
+  # (matches-plus the 200 m moves-per-cell density; measured full-re-evaluation
+  # cost at 2,500 cells = 1.39 s/move -> ~5.8 h; probe in
+  # scripts/f1_anneal_timing_probe.py). The old 200 m note (~120 ms/move,
+  # 2500 iters ~= 5 min) is retained below for the record.
+  n_iterations: 15000                         # SA outer-loop iterations @ 50x50)
+  initial_temperature: 0.08                   # accept ~50% of moves at start
+  final_temperature: 0.0008                   # accept ~0% by the end
+  hard_penalty: 40.0                          # heavy weight on hard-constraint gaps (raised from 25 in Stage A to pressure SA toward residual-violation cleanup)
+  soft_penalty: 2.0                           # light weight on requirements_satisfied
+  constraint_penalty_weight: 2.0              # legacy key (read by older callers)
+  rng_seed: 42                                # for reproducibility
+  log_every: 250                              # progress printout cadence
+  # NOTE (200 m era): production runs can use n_iterations >= 5000 once delta
+  # evaluation speedup is in place. Bottleneck is full re-evaluation per move
+  # (~120 ms at 625 cells; ~1.39 s at 2,500 cells). 2500 iterations took ~5 min
+  # at 200 m.
+
+# ---------------------------------------------------------------------------
+# Currency note: ALL cost values in this project are in Indian Rupees (INR).
+# The energy MILP (later stage) uses INR/kWh tariffs, INR/kWp CAPEX, etc.
+# ---------------------------------------------------------------------------

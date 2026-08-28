@@ -1,0 +1,172 @@
+/* Urja — resident energy app. Palette and type follow the thesis figure system:
+   warm paper, muted amber/blue/brown, ink #1B1B1B. */
+:root{
+  --canvas:#EFEDE7; --card:#FCFBF7; --soft:#F5F3ED; --ink:#1B1B1B; --dim:#6E6E6E;
+  --line:#E4E2DC; --solar:#E8B54E; --grid:#5B84B8; --water:#4E7CA8; --good:#6E8F5E;
+  --batt:#7C9A6E; --warn:#B0764A; --glow:rgba(232,181,78,.16);
+  --r-lg:26px; --r-md:20px; --r-sm:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+/* NO ZOOM, SCROLL ONLY. The viewport meta blocks pinch; this blocks the
+   DOUBLE-TAP zoom, which the meta tag does not, and which is easy to trigger
+   by accident on a tab bar or a toggle. `manipulation` keeps panning and
+   scrolling - it only drops the double-tap gesture. Kept off `main` so
+   scrolling inside the app is untouched. */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+body{
+  background:#E4E1D9; color:var(--ink);
+  font-family:"Instrument Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
+  font-feature-settings:"tnum" 1; -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:left}
+a{color:var(--grid);text-decoration:none}
+a:hover{color:var(--ink)}
+.serif{font-family:Georgia,"Times New Roman",Times,serif}
+
+#app{
+  position:relative;display:flex;flex-direction:column;
+  width:100%;max-width:430px;margin:0 auto;min-height:100dvh;height:100dvh;
+  background:var(--canvas);overflow:hidden;
+}
+@media (min-width:520px) and (min-height:900px){
+  body{display:flex;align-items:center;justify-content:center;min-height:100dvh}
+  #app{height:880px;min-height:0;border-radius:44px;box-shadow:0 40px 80px -34px rgba(28,24,18,.45),0 0 0 9px #1c1b19,0 0 0 10px #38352f}
+}
+
+/* The mock status bar was DELETED from index.html on. It
+   duplicated the phone's real clock and battery when installed, and added
+   nothing in a browser. Its rules are gone with it; the safe-area padding the
+   header used to inherit is now applied unconditionally below. */
+
+/* The header takes the safe-area inset directly now that nothing sits above
+   it, so the greeting clears the Dynamic Island. index.html sets
+   viewport-fit=cover, which is what makes env() resolve to anything but 0. */
+header{padding-top:calc(env(safe-area-inset-top, 0px) + 10px)}
+nav{padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 10px)}
+/* HOME NAME ON ONE LINE. "Sector 29 - Home 12" plus a full tier label
+   overflowed 430 px and wrapped onto a second line, pushing the header into
+   the first card. The tier chip now carries the short form and the name is
+   allowed to shrink rather than wrap. */
+.homebtn{white-space:nowrap;min-width:0}
+.homebtn > span:first-of-type{overflow:hidden;text-overflow:ellipsis}
+
+header{flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:6px 20px 10px}
+.eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.homebtn{display:flex;align-items:center;gap:7px;font-size:21px;font-weight:600;letter-spacing:-.02em;margin-top:1px}
+.tierchip{font-size:11px;font-weight:600;padding:3px 7px;border-radius:99px;background:var(--soft);border:1px solid var(--line);color:var(--dim)}
+.hdr-actions{display:flex;align-items:center;gap:7px;flex:none}
+.pill{display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:99px;background:var(--card);
+  border:1px solid var(--line);font-size:12px;font-weight:600}
+.pill.icon{padding:8px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.dot.sim{background:var(--solar)}
+
+main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 20px 24px;scrollbar-width:thin}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px}
+.card.tight{padding:16px}
+.card.flush{padding:0;overflow:hidden}
+.card + .card,.stack > * + *{margin-top:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row{display:flex;align-items:center;gap:12px}
+.spread{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.label{font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.big{font-size:40px;font-weight:600;letter-spacing:-.035em;line-height:1}
+.med{font-size:27px;font-weight:600;letter-spacing:-.03em}
+.sub{font-size:12.5px;color:var(--dim);line-height:1.5}
+.h{font-size:14px;font-weight:600}
+.note{font-size:12px;color:var(--dim)}
+.hint{font-size:11px;font-weight:600;color:var(--dim);letter-spacing:.02em}
+.mono-note{font-size:11.5px;color:var(--dim)}
+.swatch{width:9px;height:9px;border-radius:3px;flex:none}
+.legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--dim)}
+.chips{display:flex;gap:5px;overflow-x:auto;padding:2px 0 10px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:7px 12px;border-radius:99px;font-size:12.5px;font-weight:600;
+  background:var(--card);border:1px solid var(--line);color:var(--dim)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--canvas)}
+.seg{display:flex;gap:4px;padding:3px;border-radius:99px;background:var(--soft);border:1px solid var(--line)}
+.seg button{padding:6px 11px;border-radius:99px;font-size:11.5px;font-weight:600;color:var(--dim)}
+.seg button.on{background:var(--card);color:var(--ink)}
+.rowitem{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.rowitem:last-child{border-bottom:0}
+.rowitem .grow{flex:1;min-width:0;font-size:13.5px;font-weight:600}
+.tot{display:flex;align-items:center;gap:12px;padding:15px 18px;background:var(--soft)}
+.dark{background:var(--ink);color:var(--canvas);border-radius:var(--r-lg);padding:20px}
+.dark .label,.dark .sub{color:rgba(252,251,247,.62)}
+.tile{padding:12px 13px;border-radius:var(--r-sm);background:rgba(252,251,247,.09)}
+.tile.light{background:var(--soft);border:1px solid var(--line)}
+.switch{flex:none;width:52px;height:30px;border-radius:99px;padding:3px;display:flex;background:var(--line);transition:background .18s}
+.switch > i{width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s}
+.switch.on{background:var(--batt)}
+.switch.on > i{transform:translateX(22px)}
+.switch.dark-track{background:rgba(252,251,247,.22)}
+.switch.dark-track.on{background:var(--good)}
+.cta{display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;border-radius:var(--r-lg);background:var(--ink);color:var(--canvas)}
+.cta .ico{flex:none;width:38px;height:38px;border-radius:13px;background:rgba(252,251,247,.12);display:flex;align-items:center;justify-content:center}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:20px;flex:1}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:var(--ink)}
+input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:var(--line)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:var(--ink)}
+
+/* hero */
+.hero{position:relative;overflow:hidden}
+.hero .glow{position:absolute;inset:-30% 18% 42% 18%;background:radial-gradient(circle at 50% 40%,var(--glow),transparent 68%);pointer-events:none}
+.flow{position:relative;padding:4px 10px 14px}
+.flow svg{width:100%;display:block}
+.node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;
+  padding:9px 12px;border-radius:var(--r-md);background:var(--card);border:1px solid var(--line);
+  box-shadow:0 3px 10px -6px rgba(20,16,10,.35);white-space:nowrap}
+.node.wide{flex-direction:row;align-items:center;gap:8px;border-radius:99px;padding:7px 13px 7px 10px}
+.node b{font-size:12.5px;font-weight:600}
+.node .hint{font-size:9px;letter-spacing:.07em}
+.centre{position:absolute;left:50%;top:49%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.dash{stroke-dasharray:4 10;animation:flowDash 1.5s linear infinite}
+.dash.rev{animation-name:flowDashRev}
+@keyframes flowDash{to{stroke-dashoffset:-28}}
+@keyframes flowDashRev{to{stroke-dashoffset:28}}
+
+/* bars */
+.bars{display:flex;gap:5px;align-items:flex-end}
+.bars .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:flex-end}
+.bars .bar{width:100%;border-radius:5px;background:var(--line)}
+.bars .cl{font-size:8.5px;font-weight:600;color:var(--dim)}
+.hbar{height:10px;border-radius:99px;background:var(--soft);overflow:hidden}
+.hbar > i{display:block;height:100%;border-radius:99px;background:var(--ink)}
+
+nav{flex:none;display:flex;gap:2px;padding:6px 12px 22px;border-top:1px solid var(--line);background:var(--canvas)}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0 2px;color:var(--dim)}
+nav button.on{color:var(--ink)}
+nav span{font-size:10px;font-weight:600}
+
+/* sheets and overlays */
+.overlay{position:absolute;inset:0;background:rgba(27,25,22,.34);display:flex;align-items:flex-end;z-index:20}
+.sheet{width:100%;max-height:94%;display:flex;flex-direction:column;background:var(--canvas);
+  border-radius:32px 32px 44px 44px;overflow:hidden;transform:none;opacity:1;animation:sheetIn .2s ease-out both}
+@keyframes sheetIn{from{opacity:.85}to{opacity:1}}
+.sheet-head{flex:none;padding:18px 22px 12px}
+.sheet-body{flex:1;min-height:0;overflow-y:auto;padding:0 22px 26px}
+.close{flex:none;width:32px;height:32px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center}
+.townmap{width:100%;display:block;border-radius:16px;background:var(--card)}
+.cellbtn{display:flex;align-items:center;gap:12px;width:100%;padding:13px 15px;border-radius:var(--r-md);
+  background:var(--card);border:1px solid var(--line);margin-top:8px}
+.cellbtn.on{border-color:var(--ink)}
+.cellbtn .av{flex:none;width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:12px;font-weight:700}
+.first{position:absolute;inset:0;background:var(--canvas);display:flex;flex-direction:column;
+  padding:60px 30px 30px;z-index:30}
+
+/* viva mode: current tab frozen into a clean card, no chrome */
+body.viva #app{max-width:920px;height:auto;min-height:100dvh;border-radius:0;box-shadow:none;background:var(--canvas)}
+body.viva .statusbar,body.viva nav,body.viva .hdr-live{display:none}
+body.viva header{padding:34px 40px 14px}
+body.viva header .homebtn{font-size:27px;pointer-events:none}
+body.viva main{overflow:visible;padding:0 40px 40px}
+body.viva main > .stack{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;align-items:start}
+body.viva main > .stack > *{margin-top:0}
+body.viva .dash{animation:none}
+@media print{body.viva #app{height:auto}}

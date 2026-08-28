@@ -1,0 +1,852 @@
+# Per-capita and per-worker demand norms.
+# Placeholder values shaped from URDPFI 2015 (Urban and Regional Development
+# Plans Formulation and Implementation Guidelines, Government of India) and
+# common Indian district master-plan practice. Replace with verified values
+# when calibrating to a specific city.
+# These convert demographic counts into floor-area or facility-count
+# requirements, which the optimiser must satisfy when generating layouts.
+# ---------------------------------------------------------------------------
+# Calibration Status + Stage-F Target Norms (cited).
+# Source: DATA/100k_peri_urban_punjab_calibration.md (B1-B5) + DATA/zirakpur_data_sources.md.
+# The values BELOW are unchanged so the frozen optimised_sa layout stays valid; the cited
+# targets here are to be SWAPPED IN at the Stage F re-anneal (they change facility COUNTS):
+#   - Primary school:     1 per 5,000 population   (URDPFI 2014 via secondary)
+#   - Senior-secondary:   1 per 7,500 population   (URDPFI 2014 via secondary)
+#   - Urban Phc (Uphc):   1 per 50,000 population  (Iphs 2022, MoHFW)
+#   - Urban Chc (Uchc):   1 per 2.5-3 lakh pop     (Iphs 2022, MoHFW)
+#   LINKED (named-source sweep - IPHS was cited as
+#   throughout this file and never once linked, which is the same
+#   prose-only pattern behind the Aeee / CGWB / Teri retractions):
+#     IPHS portal, MoHFW:  https://iphs.mohfw.gov.in/
+#     PHC guidelines 2022: https://nhm.gov.in/images/pdf/guidelines/iphs/iphs-revised-guidlines-2022/03_PHC_IPHS_Guidelines-2022.pdf
+#     CHC guidelines 2022: https://nhm.gov.in/images/pdf/guidelines/iphs/iphs-revised-guidlines-2022/02-CHC_IPHS_Guidelines-2022.pdf
+#   Revised edition released 16-Apr-2022 by MoHFW, Government of India.
+#   DOC-verified (the documents exist and are the right ones); the
+#   population-per-facility ratios above have NOT been re-read from
+#   them today. CLAIM verification is still outstanding.
+#   - Open space:         10-12 m^2/capita         (URDPFI 2014 — matches current 12.0)
+#   - Park hierarchy:     housing 0.5 ha/5,000; neighbourhood 1 ha/15,000; community 5 ha/100,000
+#   - Convenience retail: ~4 m^2/capita            (URDPFI — matches current 4.0)
+#   - Hotels:             NO reliable URDPFI norm found -> treat as market-driven (current 1.5/1,000 is a placeholder)
+# IPHS uses FACILITY-per-population; the model currently uses beds & students-per-facility.
+# Reconciling the two schemas (and the education divergence: current ~1/school-of-1500-students
+# gives ~10 primary schools vs URDPFI's ~20) is a Stage-F task requiring a re-anneal.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Education (URDPFI 2015 Table 4.10)
+# ---------------------------------------------------------------------------
+education:
+  # switched to URDPFI 2014 population-per-facility norms ( guideline).
+  # Facility counts at 100k: primary ceil(100k/5000)=20, secondary ceil(100k/7500)=14.
+  # Mapped to CELLS via floor-per-facility / floor-per-cell (a 200 m cell hosts a campus
+  # of co-located facilities), so ~15 school cells (was ~20 via the legacy 1-school-per-cell).
+  population_per_primary_school: 5000     # URDPFI 2014 Table ( via guideline)
+  population_per_secondary_school: 7500   # URDPFI 2014 (senior secondary)
+  floor_m2_per_primary_school: 2500       # ~0.4 ha site, G+1 building (URDPFI site norm)
+  floor_m2_per_secondary_school: 5000     # larger senior-secondary campus
+  # legacy: students-per-school derivation. Doc Only - NO Code Reads These Four
+  # (verified). "fallback" in the old wording implied a code path
+  # that does not exist; school sizing runs off population_per_*_school and
+  # floor_m2_per_*_school above. Kept because they record how the frozen
+  # seed-42 layout's school counts were originally derived.
+  students_per_primary_school: 1500
+  students_per_senior_secondary: 1500
+  primary_share_of_enrolled: 0.55         # primary + middle
+  secondary_share_of_enrolled: 0.45       # senior secondary
+
+# ---------------------------------------------------------------------------
+# Healthcare (URDPFI 2015 Table 4.13)
+# ---------------------------------------------------------------------------
+healthcare:
+  # switched to IPHS 2022 (MoHFW) facility-per-population norms.
+  # At 100k: Urban PHC ceil(100k/50000)=2; Urban CHC ceil(100k/275000)=1. Mapped to cells
+  # via floor-per-facility -> ~2-3 healthcare cells (was ~12 via the beds->dispensary-per-cell
+  # over-count). Fewer, larger, consolidated facilities — matches IPHS, more defensible.
+  population_per_uphc: 50000              # IPHS 2022 Urban PHC
+  population_per_uchc: 275000             # IPHS 2022 Urban CHC (2.5-3 lakh midpoint)
+  floor_m2_per_uphc: 1500                 # urban PHC / clinic building
+  #.8: 14,000 -> 24,000 m2. URDPFI
+  # 2015 at the 2.5-lakh tier provides ONE general hospital (200-300 beds,
+  # 4-6 ha campus) - 300 beds x ~80 m2/bed built ( derivation)
+  # = 24,000 m2. With 5 UPHC x 1,500 the healthcare stock = 31,500 m2 ->
+  # 9 cells at the 3,600 blended divisor: the locked 2x2 hospital CAMPUS
+  # (layout/f6_locks.py, arterial-fronted, IPHS ambulance access) + 5
+  # road-fronted UPHC clinic cells.
+  floor_m2_per_uchc: 24000               # 300-bed general hospital (was 50-100 bed CHC)
+  # legacy beds-based. Doc Only - NO Code Reads These Four (verified
+  #); there is no beds_total report consuming them. Healthcare
+  # sizing runs off population_per_* and floor_m2_per_* above. Kept as the
+  # derivation record for the frozen layout's clinic/hospital counts.
+  beds_per_1000_population: 3.0
+  beds_per_dispensary: 10
+  beds_per_hospital: 100
+  dispensary_share_of_beds: 0.30
+  hospital_share_of_beds: 0.70
+
+# ---------------------------------------------------------------------------
+# Retail / commercial (URDPFI 2015 Table 4.11)
+# ---------------------------------------------------------------------------
+retail:
+  # Attributed, Not Claim-Verified. The block header attributes this
+  # to URDPFI 2015 Table 4.11 and the value is consistent with the commonly
+  # quoted 4 m2 per capita retail provision, but the table itself has NOT been
+  # opened, so under this project's own rule this is an attribution rather than a
+  # citation. The Ministry landing page is a known-degraded source: it returns
+  # 200 but renders JS-only with no document links, and the direct upload path
+  # 404s (recorded, re-.
+  #   URDPFI Guidelines, MoHUA (, Link degraded, Claim unverified):
+  #   https://www.mohua.gov.in/link/urdpfi-guidelines.php
+  # TO CLOSE: open URDPFI 2015 Volume I Table 4.11 via the Imperial library and
+  # confirm the per-capita retail figure. Until then treat 4.0 as a planning
+  # ASSUMPTION consistent with URDPFI practice, not as a verified norm.
+  # Value unchanged pending that check.
+  m2_per_capita: 4.0                      # m2/capita, retail floorspace provision
+  share_in_shopping_centre: 0.50          # enclosed malls (was 0.70 before high-street split)
+  share_in_highstreet: 0.20               # NEW: linear ground-floor retail along main roads
+  m2_per_restaurant_seat: 2.5
+  # *** The Trend Statistics Below Are Not IN The Cited Article. Restated
+  #. *** The block attributed "eating-out frequency 6.6 -> 7.9x/
+  # month (+20% in 5y), organised share -> 52.9% by 2028, tier-2/3 city share
+  # 21% -> 32%" to the Restaurant India write-up linked below. That page was
+  # fetched and parsed (40,105 characters). Its HEADLINE matches exactly -
+  # "India to be the 3rd Largest Food Service Market by 2028 overtaking Japan:
+  # Nrai Ifsr 2024" - but "6.6", "7.9", "52.9" and "organised" All return Zero
+  # hits; the one "21" is an unrelated passage about staff attrition. The
+  # figures presumably live in the NRAI India Food Services Report 2024 itself,
+  # which this trade article reports on but does not reproduce.
+  # What The 60 Seats/1000 Actually Rests ON, stated plainly: it is an
+  # BALLOT.7,), a declared planning decision to double the
+  # URDPFI-era 30/1000 for a town whose commercial programme is built around a
+  # highstreet spine. The direction is supported by the cited article's own
+  # headline claim (India becoming the 3rd largest food service market by
+  # 2028). The specific trend numbers are NOT sourced and are retained below
+  # only as the reasoning that was in the room, not as citations.
+  # TO Close IT: cite the Nrai Ifsr 2024 report directly, or delete the four
+  # (unsourced trend figures, retained as decision context:
+  # https://www.restaurantindia.in/article/india-to-be-the-3rd-largest-food-service-market-by-2028-overtaking-japan-nrai-ifsr-2024 ).
+  # 60/1000 x 250k = 15,000 seats x 2.5 m2 = 37,500 m2 -> 4 cells at the
+  # 10,000 m2 F&B-strip class; the LOCKED highstreet chain carries street
+  # food-and-beverage frontage ON TOP (the Indian bazaar reality).
+  # *** Source Substituted; Declared IN The Thesis AT 6.3.7. ***
+  # The NRAI "India Food Services Report 2024" is SOLD, not published, and the
+  # statistics attributed to it (eating-out frequency 6.6 -> 7.9/month, tier-2/3
+  # share 21 -> 32%) are not reproduced in any public document. Two searches
+  # failed. The restaurantindia.in article previously cited has the right
+  # headline and contains none of the numbers.
+  # SUBSTITUTE BASE, peer-reviewed and government-survey derived :
+  #   Fiedler & Yadav, "How can we better capture food away from Home?
+  #   Lessons from India's linking person-level meal and household-level food
+  #   data", Food Policy 72 (2017) 81-93, DOI 10.1016/j.foodpol.2017.08.015
+  #   (venue/year; was mis-noted as "Public Health
+  #   Nutrition 2016"), analysing NSS 68th-round microdata:
+  #   3.3 meals away from home per person per 30 days; 4.5% of all meals
+  #   consumed away from home.
+  #   https://pmc.ncbi.nlm.nih.gov/articles/PMC5656091/
+  # The Tier-2/3 Uplift ON Top OF That Base Remains A Declared Assumption:
+  # no public source disaggregates food-service EXPENDITURE by city tier.
+  restaurant_seats_per_1000_pop: 60
+
+# ---------------------------------------------------------------------------
+# Office / workplace (URDPFI Table 4.12)
+# ---------------------------------------------------------------------------
+office:
+  m2_per_professional_worker: 10.0        # URDPFI 10 sqm per office worker
+  m2_per_public_services_worker: 12.0     # govt + admin slightly higher
+
+# ---------------------------------------------------------------------------
+# Parking (NEW) — URDPFI 2014 parking standards (Vol I, Table on
+# Equivalent Car Space). ECS = Equivalent Car Space per 100 m^2 BUILT floor
+# area, by use. 1 ECS for SURFACE/open parking ~= 23 m^2 incl. aisle/
+# manoeuvring (URDPFI). PARKING_LOT cells (no building) host the district's
+# CONSOLIDATED surface-parking-equivalent of these uses' ECS demand + carport
+# PV; on-plot / basement / stilt parking inside building cells is not
+# separately resolved at 200 m granularity. Only CAR-owning uses generate
+# demand (low/mid residential have ~no cars per the EV-by-income model, so they
+# are excluded). for ECS rates (URDPFI guideline) for the
+# surface-equivalent district abstraction + net-to-gross.
+#   https://www.mohua.gov.in/link/urdpfi-guidelines.php (Vol I; direct upload path 404s as of)
+parking:
+  ecs_per_100m2_by_use:
+    # Stage-: 1.5 -> 0.25. The 1.5 Ecs/100 m2 was the URDPFI
+    # GROUP-HOUSING (shared-lot) rate, written when high_income_residential was
+    # premium FLATS. The Stage- typology is a PLOTTED kothi colony
+    # decision): plotted residential self-parks ON-PLOT (driveway/stilt inside
+    # the 300 m2 plot - URDPFI treats plotted parking as an on-plot obligation,
+    # not a public-lot demand), so only a VISITOR share hits the consolidated
+    # surface lots. 0.25 ECS/100 m2 = visitor allowance ( derived from the
+    # URDPFI visitor-parking convention ~10-20% of the group-housing rate).
+    # Without this fix the colony generated 40,180 phantom public ECS (~92 ha
+    high_income_residential: 0.25   # plotted colony: visitor-only (was 1.5 group-housing)
+    # STAGE-: flats' RESIDENT cars park on-plot (stilt/podium
+    # per the PUDA group-housing on-plot obligation - audited each period by
+    # core/parking_demand.on_plot_absorption_audit against the car fleet);
+    # only a VISITOR share hits public lots. Same visitor convention
+    # as the kothi 0.25 above, scaled by tier visitor intensity.
+    mid_income_residential: 0.10    # flats: visitor-only allowance
+    low_income_residential: 0.05    # EWS/LIG flats: visitor-only allowance
+    # ======================================================================
+    #: RE-Anchored TO The Actual URDPFI Document.
+    # The block cited URDPFI but the document had never been opened (its own
+    # URL note says the upload path 404s). It has now been parsed in full:
+    # URDPFI Guidelines 2014, MoUD, Vol I s8.2.8 "Parking", pp.289-292
+    # (PDF pp.163-166 of 297), Table 8.11 (rates, attributed to NBC) and
+    # Table 8.12 (the fallback the document itself directs you to "where it
+    # is not prescribed", sourced to MPD 2021)..
+    # https://cdnbbsr.s3waas.gov.in/s35f4f78111ff6538d1f5ea498032c4745/uploads/2025/03/20250310296203399.pdf
+    # Six Rates Had Drifted, Five OF Them Conservative. Corrected below.
+    # Four Uses With Built Floor Area Carried NO Rate AT All (school 297,500
+    # m2, retail_highstreet 210,000, religious 100,000, restaurant 40,000) -
+    # they generated ZERO parking demand. Added below.
+    # *** And IT Changes Nothing - Tested, Not Assumed. *** With every
+    # correction applied the stacked URDPFI peak DOUBLES (2030: 24,267 ->
+    # 48,263 ECS) and the answer does not move by one cell: 17 / 23 / 33
+    # parking cells, all three periods. `core/parking_demand` takes
+    # ecs = min(urdpfi_peak, fleet_peak) and the CAR FLEET binds in every
+    # period (2030 fleet peak 4,938 ECS, ~5x below the old stacked figure and
+    # ~10x below the corrected one). So the land take is ROBUST TO A 2x ERROR
+    # IN The Parking Standard Itself - a stronger claim than "our rates are
+    # right", and the defensible one. Artifact:
+    # ======================================================================
+    office: 1.8                     # Table 8.11 "Integrated Office Complex" 1.8 (was 2.0)
+    shopping_centre: 3.0            # Table 8.11 "District Centre / Sub-CBD" 3 - a mall is a district centre (was 2.0)
+    light_industry: 2.0             # Table 8.11 "Industrial Plot", 2 at EVERY size band (was 1.0, half)
+    warehouse_cold_storage: 3.0     # Table 8.11 "Integrated Freight Complex / Wholesale Market" 3 (was 0.75)
+    healthcare: 2.0                 # Table 8.11 "Hospitals" 2 (was 1.5)
+    public_services: 1.8            # Table 8.11 "Integrated Office Complex" / Table 8.12 "Government" 1.8 (was 1.0)
+    hotel_guesthouse: 3.0           # Table 8.11 "Hotel" 3 - the old 2.0 was the GUEST HOUSE row (was 2.0)
+    # - these four had built floor area and no rate:
+    school: 2.0                     # not in Table 8.11; Table 8.12 "Public and Semi-Public Facilities" 2.0
+    retail_highstreet: 2.0          # Table 8.11 "Convenience / Local Shopping Centre / Local Level Commercial" 2
+    religious: 2.0                  # not in Table 8.11; Table 8.12 "Public and Semi-Public Facilities" 2.0
+    restaurant_food_service: 3.0    # not in Table 8.11; Table 8.12 "Commercial" 3.0
+  # Confirmed Exact against URDPFI Table 8.13 "Space standards for Parking",
+  # row 1 "Open" = 23 sqm per ECS. This value was always right.
+  m2_per_ecs: 23                    # URDPFI Table 8.13 open/surface parking (incl. circulation)
+  lot_net_to_gross: 0.85            # net parking / 200 m cell area (edge access + landscaping buffer)
+  # ------------------------------------------------------------------------
+  # STAGE- (,
+  # register.3; model in core/parking_demand.py).
+  # TOTAL car ownership (ANY fuel) - fraction of households owning >= 1 car,
+  # by income tier and period. Sizes PARKING; the EV SUBSET (economics.yaml
+  # ev_adoption.ev_car_share_by_period, cited there) drives charging/V2G -
+  # consistent fleets, no double count. CONVERGES to the EV table by 2055
+  # derivation from sources: Data For India vehicle ownership
+  # (~25% of the RICHEST urban quintile own a car nationally; our HIG tier in
+  # an affluent Chandigarh-region new town skews higher, ~45%)
+  # https://www.dataforindia.com/vehicle-ownership/; growth path per CEEW
+  # passenger-vehicle-ownership-to-2050 (rising ownership, EV share -> ~all)
+  # https://www.ceew.in/publications/how-will-indias-private-and-passenger-vehicle-ownership-grow-by-2050
+  # *** Claim-, and the table below Cross-Checks against it.
+  # *** CEEW's headline projections: private cars rise from 24 per 1,000
+  # people (2023) to 57 per 1,000 (2050); total vehicle stock 226 million
+  # (2023) -> ~500 million (2050); car stock triples to ~90 million.
+  # THIS TABLE, converted to the same unit: the 2055 shares below
+  # (low 0.10 / mid 0.40 / high 0.55) against the model's income split
+  # (0.40 / 0.45 / 0.15) give 30.3% of HOUSEHOLDS owning >=1 car, which at
+  # ~4.6 persons/household is ~66 Cars Per 1,000 People.
+  # vs CEEW's 57/1,000 nationally in 2050 -> this model sits ~16% ABOVE the
+  # national projection. That is the RIGHT DIRECTION and the right size for an
+  # affluent Chandigarh-region new town (CEEW's figure is an all-India average
+  # including low-income rural states), and it is the conservative direction
+  # for parking and EV load, which both scale with the fleet. Say "above the
+  # national average, deliberately", not "matches CEEW".
+  car_ownership_total_by_income:
+    "2030": {low: 0.02, mid: 0.15, high: 0.45}
+    "2042": {low: 0.05, mid: 0.25, high: 0.50}
+    "2055": {low: 0.10, mid: 0.40, high: 0.55}   # == ev_car_share_by_period 2055 (all-EV)
+  # On-plot parking provision per dwelling for FLATS (stilt/podium inside the
+  # residential cell). PUDA Building Rules 2021 group-housing obligation ~1
+  # ECS per dwelling ( instrument; exact table value pending the-FAR
+  # verification prompt). The per-period audit proves worst-tier cars/DU
+  # (0.69 by 2055 = high 0.55 ownership x 1.25 cars/owning-HH) stays under it.
+  onplot_ecs_per_dwelling: 1.0
+  # Out-of-town commuters: share of the town's JOBS held by people living
+  # OUTSIDE (they must park at work -
+  # city to work"). assumption, 10-20% band for a peri-urban township
+  # with a regional draw (Census D-series commuting patterns, qualitative);
+  # uplifts the WORKER-heavy uses' day ECS in parking_demand.py.
+  external_commuter_share: 0.15
+  worker_ecs_uses: [office, light_industry, warehouse_cold_storage, public_services]
+  # E-scooters/2-wheelers: URDPFI ECS convention folds 2W into Equivalent Car
+  # Spaces (1 car ~= 4-5 x 2W) inside the per-use rates above; residential 2W
+  # park on-plot/on-street. Audited (not separately land-sized) - see
+  # core/parking_demand.py docstring.
+  # ------------------------------------------------------------------------
+  # v2 (,
+  # for parking at peak?" - answer NO): the URDPFI per-building ECS rates
+  # are Worst-Case Design standards; stacking them across every building
+  # (22k ECS) ignores that the whole resident fleet is ~9.4k cars and a car
+  # cannot occupy two lots at once. Public peak demand is therefore CAPPED
+  # by the FLEET-CONSTRAINED peak:
+  #   peak = resident_cars x peak_away_share            (cars out at midday)
+  #        + in_commuter_workers x commuter_drive_share (outsiders' cars)
+  #        + visitor_allowance x resident-fleet-peak    (shoppers/patients
+  #                                                      from outside)
+  # peak_away_share 0.40: Indian cars are parked ~90-95% of the time and
+  # home-dominant (CSE parking-policy studies).
+  # *** URL REPAIRED. *** The page previously cited
+  # (.../parking-policy-for-clean-air-and-liveable-cities-8874) returns HTTP
+  # 200 but its body is JavaScript-loaded and renders with ZERO hits for
+  # "parked", "90" or "95". A DIFFERENT CSE page carries the claim verbatim
+  # and renders correctly; opened and quoted
+  #   "Cars remain parked for about 90 to 95 per cent of their useful life"
+  #   - Centre for Science and Environment,.
+  # https://www.cseindia.org/parking-restraint-must-to-reduce-car-usage-and-promote-clean-commuting-practices-says-cse-analysis-6131
+  # midday away-from-home occupancy ~30-45% band -> 0.40.
+  # commuter_drive_share 0.30: car modal share of affluent-region commuters
+  # (Chandigarh-region context; Census D-series qualitative).
+  # (in-commuter cars derive as peak_away x commuter/(1-commuter): outsiders
+  # hold 15% of jobs so they add 15/85 of the resident driving workforce,
+  # drive shares assumed comparable -.)
+  peak_away_share: 0.40
+  visitor_peak_share: 0.12          # visitors from outside as a share of the fleet-based peak
+  # ------------------------------------------------------------------------
+  #.5 v3 (,
+  # an area at once - accommodate That many"): Hourly Shared-Parking
+  # occupancy profiles per use (fraction of the use's design ECS occupied
+  # in each 2-h daypart, weekday). The requirement is the Max Over The Day
+  # of the SUM across uses (peak simultaneous accumulation), still capped
+  # by the fleet-constrained peak above (a car cannot be in two lots at
+  # once). Method: ITE/ULI Shared Parking temporal-factor approach (,
+  # https://www.uli.org/wp-content/uploads/ULI-Documents/Shared-Parking.pdf )
+  # adapted to Indian daily rhythms (offices ~09:30-18:00, market/mall peak
+  # 18:00-21:00, restaurant dinner peak 20:00-23:00 - adaptation).
+  occupancy_profiles:
+    #                00   02   04   06   08   10   12   14   16   18   20   22
+    office:         [0.02,0.02,0.02,0.05,0.55,0.95,0.90,0.95,0.80,0.35,0.10,0.03]
+    shopping_centre: [0.05,0.02,0.02,0.05,0.15,0.40,0.60,0.65,0.70,0.90,0.85,0.30]
+    light_industry: [0.15,0.15,0.15,0.30,0.80,0.85,0.85,0.85,0.75,0.45,0.20,0.15]
+    warehouse_cold_storage: [0.20,0.20,0.20,0.35,0.75,0.80,0.80,0.80,0.70,0.45,0.25,0.20]
+    healthcare:     [0.20,0.15,0.15,0.25,0.60,0.90,0.85,0.80,0.70,0.55,0.35,0.25]
+    public_services: [0.02,0.02,0.02,0.05,0.50,0.90,0.85,0.90,0.70,0.25,0.05,0.02]
+    hotel_guesthouse: [0.90,0.90,0.90,0.85,0.60,0.45,0.45,0.50,0.60,0.75,0.85,0.90]
+    high_income_residential: [0.90,0.90,0.90,0.85,0.55,0.35,0.35,0.40,0.55,0.80,0.90,0.90]
+  # Cell capacity: URDPFI 23 m2/ECS is stall+aisle for an efficient lot;
+  # real Indian surface lots with landscaping, EVSE bays and canopy columns
+  # run ~28-33 m2/car (CSE/MoHUA parking manuals) -> effective ~300 ECS per
+  # 1-ha cell. Expressed here as net_to_gross 0.70 x 23 m2 (=~305/cell).
+  # (lot_net_to_gross above retained for back-compat; the parking model
+  # uses THIS effective value.)
+  lot_net_to_gross_effective: 0.70
+  # Carport canopy: covers the parking BAYS (~12-14 m2/car), not aisles ->
+  # ~35% of the cell ~= 3,500-4,000 m2 ~= ~500 kWp/lot at ~7 m2/kWp -
+  # matches the existing per-lot carport constant (audit note; PV number
+  # unchanged). derivation from bay geometry + module density.
+  canopy_fraction_of_cell: 0.35
+
+# ---------------------------------------------------------------------------
+# Industry
+# ---------------------------------------------------------------------------
+industry:
+  # DECLARED ASSUMPTION. No source was found for this value after a
+  # search of the project's cited material, and none is claimed. It is a
+  # workspace-density assumption for LIGHT industry, i.e. workshops and small
+  # production units rather than heavy plant, and it sits inside the range such
+  # units are normally planned at. It is NOT a statutory norm and must not be
+  # presented as one.
+  # WHAT IT AFFECTS, so the exposure is bounded rather than assumed away: it
+  # converts industrial floor area into a worker count. Industry is 35 of 2,500
+  # cells, 1.4 % of the site. The worker count feeds employment structure and
+  # industrial demand, not the land-use budget, so the layout is unaffected by
+  # it. Industrial demand is 52.01 GWh, 9.9 % of district demand.
+  # TO CLOSE: either cite a factory-planning or state-industrial-policy density
+  # figure with a URL and a Tier label, or keep it labelled as an assumption and
+  # carry it in the limitations. Value unchanged pending that decision.
+  m2_per_industrial_worker: 30.0          # m2/worker, light industry, ASSUMPTION
+  warehouse_m2_per_industrial_worker: 8.0 # logistics support
+
+# ---------------------------------------------------------------------------
+# Hospitality
+# ---------------------------------------------------------------------------
+hospitality:
+  # TOTAL lodging stock ~2.48 M rooms ~= 1.75 rooms/1000 nationally
+  # (Hotelivate sizing-up-Indian-hospitality,
+  # https://www.hotelivate.com/travel-tourism/sizing-up-indian-hospitality/ );
+  # Zirakpur premium ~6x national : Chandigarh Intl airport ~8 km,
+  # NH-7/NH-152 junction hotel strip, tricity business + wedding economy.
+  # 11/1000 x 250k = 2,750 rooms x 35 m2 = 96,250 m2 -> 4 cells at 30,000
+  # m2 (FAR-3.0 commercial). The handoff's 6-10 cell guess (= 20-34
+  hotel_rooms_per_1000_pop: 11
+  m2_per_hotel_room: 35.0                 # incl. corridors and common areas
+
+# ---------------------------------------------------------------------------
+# Open space / recreation (URDPFI Table 4.14)
+# ---------------------------------------------------------------------------
+open_space:
+  m2_per_capita_total: 12.0               # URDPFI minimum 10-12 m^2 per capita
+
+# ---------------------------------------------------------------------------
+# Blue space (NEW - ponds, tanks, lakes; URDPFI water bodies 1-2%).
+# Sits alongside open_space; counted separately so evaporative-cooling
+# proximity can score against it.
+# ---------------------------------------------------------------------------
+blue_space:
+  m2_per_capita_total: 4.0                # ~1-2% of 25 km^2 at 100k pop
+
+# ---------------------------------------------------------------------------
+# Religious facilities (NEW - URDPFI 0.5-1% Punjab context).
+# Per-capita allowance for temples / gurudwaras / mosques.
+# ---------------------------------------------------------------------------
+religious:
+  #.14: 1.0 -> 0.4 m2/cap.
+  # At 250k the 1.0 value (calibrated for the 100k town, note below) gave
+  # 63 cells = 1 facility per ~4k people = 2.5x the URDPFI socio-cultural
+  # norm of ~1 religious facility per 10,000 population (URDPFI 2015 Vol I,
+  #). 0.4 m2/cap x 250k = 100,000 m2 / 4,000 m2 complex (prayer
+  # hall + forecourt, the existing per-cell form) = 25 cells = ON
+  # the norm. Freed cells return to open space at the anneal; the 800 m
+  # religious catchment is RE-CHECKED at the dress rehearsal (25 spread
+  # cells still cover if placed well - the catchment metric enforces it).
+  # (History: restored 0.5 -> 1.0 on for the 100k model's 800 m
+  # catchment; that calibration carried over un-rederived at 250k = the
+  #.14 root cause.)
+  m2_per_capita: 0.4
+
+# ---------------------------------------------------------------------------
+# Solar farm (NEW - target installed PV capacity to be hosted on-site)
+# refactor note: rooftop module efficiency is now an EXPLICIT
+# parameter in district_composition.yaml (`rooftop_module_efficiency: 0.20`).
+# `ground_mount_kwp_per_m2` below is LAND-DENSITY (not pure panel efficiency):
+# it folds in row spacing, access roads, inverter pads, tilt-related ground-
+# coverage ratio. Splitting it explicitly into module_efficiency x
+# ground_coverage_ratio is a Stage D refinement when per-cell solar-farm
+# packing decisions become first-class.
+# ---------------------------------------------------------------------------
+solar:
+  # STAGE-: solar reserve = 9% of the 25 km2 site
+  # = 225 x 1-ha cells = 225 MWp base ceiling at the 0.10 kWp/m2 land density.
+  # At 250k pop that is 0.9 kWp/capita (was 1.0 at 100k = 100 MWp = 25 x 4-ha
+  # cells - the frozen "final 200 m model" reserve). Keeps the farm-to-demand
+  # proportion of the frozen model (100 MWp : 322 GWh scales to ~260 : ~850);
+  # Trj-1 per-period density ceilings (x1.10 2042 / x1.15 2055, ITRPV/NREL Atb
+  #) ride on top -> ~259 MWp by 2055. required_cells_by_landuse derives
+  # the locked SW block size from this value (core/requirements.py ->
+  # core/export_3d.py apply_locked_zones).
+  # UPDATE: reserve RAISED to
+  # 14% of site = 350 x 1-ha cells = 350 MWp base ceiling (~402 MWp by 2055
+  # with TRJ-1). Motivation = the supply squeeze (renewable share fell
+  # 64.1% -> 60.2% at 250k because the farm scaled x2.25 against demand
+  # x2.77) +
+  # not idle belt"). Second block sits in the north belt on the CURRENT
+  # layout (layout/open_space_structure.py); future re-anneals derive the
+  # full 350 via apply_locked_zones. The LP still DECIDES how much to build
+  # (ceiling, not mandate; export-cap curtailment prices the true size).
+  # supersedes both the 350-cell/14% green directive and the
+  # same-morning 150-ha draft): the 2030 farm LAND GRANT is 200 ha = 8% of
+  # the site, PHASING to 250 ha (10%, 2042) and 300 ha (12%, 2055) via the
+  # solar_expansion_* reserve tags (economics.yaml multi_period.
+  # farm_land_cells_by_period + layout/phased_expansion.py). WHY 8/10/12:
+  # the measured frontier (outputs/data/energy/f3_solar_land_sweep.md) has
+  # its knee here - 200 ha costs +6.8% on 2030 annual energy vs the old
+  # 350-ha reference easing to <+1% as parcels unlock, while the LAST
+  # 100 ha of the old flat grant bought only 1.8% (FINDINGS: the
+  # marginal value of solar land collapses once export/demand ceilings
+  # bind). A govt land grant of 494 acres up front, phased +124/+124, is
+  # also permit-realistic where 865 acres was not. The LP still DECIDES
+  # the build within each period's land x TRJ-1 density.
+  target_kwp_per_capita: 0.8              # 200 MWp / 250k (8%-of-site 2030 grant,.1 v2)
+  # =======================================================================
+  #: 0.10 -> 0.0714 kWp/m2
+  # too small for the capacity"). HE WAS RIGHT.
+  # What Was Wrong. 0.10 kWp/m2 = 10 m2/kWp = 1 MWdc per hectare =
+  # **2.47 acres/MWdc**. It was a round number with NO CITATION - the only
+  # justification anywhere was this line's own comment asserting it "folds
+  # in row spacing, access roads, inverter pads, ground-coverage ratio".
+  # It sets the capacity of the LARGEST generator in the model.
+  # Why IT IS Wrong, Route 1 - measured Indian practice. Ground-mounted
+  # utility solar in India needs **4-5 acres per MW**, quoted per MW-AC:
+  #   Elanor Renewables (, industry): https://www.elanorrenewables.com/post/land-requirements-and-challenges-for-solar-projects-in-india
+  #   KP Group (, EPC): https://kpgroup.co/blog/land-requirements-for-solar-power-plants-in-india/
+  # Indian utility DC/AC oversizing runs ~1.25-1.35, and this model's kWp
+  # is DC nameplate, so converting at the 1.30 midpoint:
+  #   4.5 acres/MWac / 1.30 = 3.46 acres/MWdc = 14.0 m2/kWp = 0.0714 kWp/m2
+  # Why IT IS Wrong, Route 2 - the physics, independently. 1 kWp needs
+  # 1/eta m2 of module; at the 21% modules this farm assumes that is
+  # 4.76 m2. Ground-coverage ratio = module area / land area:
+  #   0.1000 kWp/m2  ->  GCR 0.476   <- what the model had
+  #   0.0714 kWp/m2  ->  GCR 0.340   <- proposed
+  # Zirakpur sits at 30.6 deg N and this farm is 100% FIXED-TILT (the
+  # flip), so rows must be spaced for the low December sun. Realistic
+  # fixed-tilt GCR at that latitude is 0.35-0.45; **0.476 packs the rows
+  # tighter than the winter sun allows** and would self-shade. 0.34 is a
+  # normal fixed-tilt layout.
+  # Two Independent Routes Landing ON The Same Number is why this is a
+  # correction and not a re-guess.
+  # CORROBORATION : NREL, "Land-Use Requirements for Solar Power
+  # Plants in the United States" (Ong et al. 2013),
+  # https://docs.nrel.gov/docs/fy13osti/56290.pdf - small fixed-tilt PV
+  # averages 5.5 acres/MWac DIRECT land use on 2013-era ~15% modules.
+  # Scaling that to 21% modules gives ~3.9 acres/MWac = ~3.0 acres/MWdc,
+  # i.e. the same neighbourhood from a third direction. NREL also
+  # distinguishes DIRECT from TOTAL (site-boundary) area - and this
+  # model's 200/250/300 ha is a LAND GRANT, i.e. total site, which is the
+  # stricter of the two and argues for the lower density, not the higher.
+  # EFFECT: 2030 farm ceiling 201,000 -> ~142,800 kWp, about -29%, and the
+  # same proportion in later periods on top of the TRJ-1 multipliers. This
+  # is the largest single correction of the audit and it moves
+  # every downstream number.
+  # The Other Three PV Surfaces Were Audited The Same Day And Survive:
+  #   rooftop  - kWp = roof_area x acceptance x 0.1930, physically exact
+  #              (1 kWp = 1/eta m2 of module); acceptance carries the
+  #              HVAC/skylight/ownership derate. SOUND.
+  #   canal PV - 210 kWp/cell = 2.1 MW/km against PEDA's own built Sidhwan
+  #              project measured at 2.34 MW/km, so 90% of measured.
+  #              CONSERVATIVE.
+  #   pond FPV - 450 kWp/ha = 21-32% areal coverage against a 30-40%
+  #              practice band. CONSERVATIVE.
+  # Only the farm was uncited, and only the farm was wrong.
+  # =======================================================================
+  # GCR 0.382 = 3.08 ac/MWdc = 4.0 ac/MWac at the 1.30 DC/AC midpoint.
+  # Three routes, same discipline as the 0.0714 correction above:
+  #   practice - the efficient end of the Indian 4-5 ac/MWac band the
+  #              block above cites (modern >21% modules, one compact
+  #              block, not scattered parcels);
+  #   NREL     - Ong 2013 fixed-tilt scaled to 21% modules = 3.9
+  #              ac/MWac (the block above derives it);
+  #   physics  - GCR 0.382 sits mid the 0.35-0.45 fixed-tilt band,
+  #              and the DERIVED inter-row loss is 0.021%
+  #              (scripts/gcr_interrow_sweep.py, validated at the
+  #              winter-solstice limit; first NOON shading only at
+  #              GCR 0.648 at this latitude). The loss is wired as
+  #              technologies.solar_farm.inter_row_shading_derate,
+  #              not ignored. GCR 0.40 (3.8 ac/MWac) was REJECTED:
+  #              it sits below the Indian practice band.
+  ground_mount_kwp_per_m2: 0.08022        # 4.0 ac/MWac; GCR 0.382 fixed-tilt at 30.6N - (see above)
+
+# ---------------------------------------------------------------------------
+# Public-services baseload (water-energy nexus). Caveat-8 fix:
+# Punjab groundwater pumping + sewage + water-treatment is a major hidden
+# load that was previously lumped silently into public_services. Now broken
+# out as an explicit per-capita figure baked into the public_services
+# baseload by EnergyNetwork.from_grid. Adds ~2.5 GWh/yr at 100k pop
+# (~10-15% of public-services baseline), closing the water-energy nexus gap.
+# *** Provenance Downgraded TO Tier 3,. This Figure Has NO Url And
+# NO Tier Label, And The Audit Found NO Other Like IT. ***
+# The line above used to read "Source: CPHEEO water-supply norms + ICAR Punjab
+# groundwater pump-energy audit (indicative range 20-30 kWh/cap/yr)" - two
+# named sources, neither linked, neither opened. Under this project's standing
+# rule (source + URL + Tier on every figure) that is not a citation, and this
+# is the ONLY consumed number found in the whole 128-source audit with no URL
+# at all rather than a wrong or shallow one.
+# *** Now Derived From The Model'S Own Inputs,. Value Unchanged
+# AT 25, But IT IS NO Longer AN Unsourced "Indicative Range". ***
+# The CPHEEO manual gives per-capita Water norms (lpcd), not pumping Energy,
+# so it could only ever support half the claim. Rather than leave the other
+# half hanging, the 25 is now decomposed against inputs this model already
+# holds and already cites:
+#   water volume   135 lpcd (CPHEEO, the figure economics.yaml already uses
+#                  for canal_water_kl_per_year) x 365
+#                  = 49.275 m3/cap/yr
+#   CHAIN CHECK    49.275 x 250,000 x 35% canal share = 4,311,562 kL/yr
+#                  against canal_water_kl_per_year = 4,312,969. Matches to
+#                  0.03%, so the two blocks are computing the same water.
+#   groundwater    65% share (DEM-5) = 32.03 m3/cap/yr
+#   lift energy    E = rho.g.h / (3.6e6. eta), with h = 30 m taken from this
+#                  model's OWN district_composition.yaml
+#                  water_energy.baseline_dynamic_head_m, and eta = 0.50
+#                  wire-to-water:
+#                      = 0.1635 kWh/m3  ->  5.24 kWh/cap/yr
+#                  (eta 0.45 gives 5.82; eta 0.60 gives 4.36 - the band is
+#                   +/- 0.7 kWh/cap, i.e. immaterial at this scale)
+#   residual       25.00 - 5.24 = 19.76 kWh/cap/yr for TREATMENT +
+#                  Distribution Pumping + Sewage, which over the full
+#                  49.275 m3 is 0.401 kWh/m3
+#   implied total  25 / 49.275 = 0.507 kWh/m3 across the whole water cycle
+# What This Buys: the volume is cited, the lift is physics from a parameter
+# the model already declares, and the ONLY remaining assumption is isolated
+# and quantified - 0.401 kWh/m3 for treatment, distribution and sewage. A
+# whole-cycle 0.507 kWh/m3 is an ordinary figure for an urban water and
+# wastewater system, so the assumption is now checkable rather than opaque.
+# STILL TIER 3, but traceable: an examiner can follow every step.
+# The Lift Half Needs NO Citation AT All, which is worth saying plainly: the
+# pump relation is first-principles hydraulics. Only the INPUTS need sourcing,
+# and both are already in the model (head 30 m) or cited (135 lpcd).
+# *** The Relation IS IN The Manual After All, And The Attribution IS Now
+# FIXED.. *** The paragraph here used to credit "CPHEEO's own
+# Chapter 13", which FINDING 1 below had already shown does not exist in this
+# edition - the comment contradicted itself. The relation was located on a
+# second pass: it is NOT in the body of chapter 11 but in
+#   Appendix 11.1, "Design Calculations For A Pumping Plant", printed p.679
+#   (PDF p.717), which states, citing CLAUSE 3.17 OF IS 1710:
+#       input to bowl assembly = (H x Q x 60) / (6120 x eta)   [kW]
+#   worked there as (54.856 x 350 x 60) / (6120 x 0.84) = 224 kW.
+# 6120 is the litres-per-minute form of the same constant that is 367 for
+# m3/h: 9.81 x 1000 / 60000 = 1/6116, and 9.81 x 1000 / 3600 = 1/367. So
+# CPHEEO's formula, the 367 form and the rho.g.h derivation above are one
+# equation in three unit systems. **Cite APPENDIX 11.1, p.679, not chapter 13.**
+# *** And The Worked Example Bounds eta, Which Was The Last Free Assumption
+# IN THIS BLOCK. *** The same appendix designs a real plant: 350 l/s against
+# 54.856 m, bowl efficiency 0.84 after a 3 per cent margin, 3 kW lost in the
+# thrust and line-shaft bearings, 227 kW input to the pump, 250 kW motor
+# selected with a 10 per cent margin.
+#   hydraulic power  1000 x 9.81 x 0.35 x 54.856      = 188.3 kW
+#   bowl efficiency  188.3 / 224                      = 0.841  (matches 0.84)
+#   at the pump      188.3 / 227                      = 0.830
+#   electrical in    227 / ~0.945 motor efficiency    = ~240 kW
+#   WIRE-TO-WATER    188.3 / 240                      = ~0.78
+#   specific energy  240 kW / 1260 m3/h               = 0.190 kWh/m3 @ 54.9 m
+#   scaled to 30 m   0.190 x 30 / 54.856              = 0.104 kWh/m3
+# This Model Uses 0.1635 kWh/m3 AT 30 m, i.e. eta = 0.50. That is roughly
+# 1.6x MORE energy per cubic metre than CPHEEO's own design example implies,
+# and 0.50 sits well below the ~0.78 that example achieves - outside the
+# 0.45-0.60 band tested above. **The direction is conservative: the model
+# charges the district more pumping energy than the manual's worked plant
+# would use.** Retained unchanged, because a district system also carries
+# distribution lift, part-load running and ageing that a new single plant
+# does not, and because the whole water term is ~1.2 per cent of district
+# demand - re-deriving it cannot compete with the 12.66 pp demand band of
+# thesis Section 5.7.6 for attention.
+# =========================================================================
+# *** The Manual Was Obtained And Read,. ***
+# CPHEEO, "Manual on Water Supply and Treatment", Third Edition, May 1999,
+# Ministry of Urban Development, Government of India. 777-page scan, no text
+# layer; read by rendering the Ccitt G4 page images. Tier 1, Primary.
+# Finding 1 - "CPHEEO Chapter 13" Does Not Exist IN This Edition. Pumping is
+# **CHAPTER 11, "Pumps and Pumping Stations"** (printed pp. ~391-439), whose
+# sections 11.1-11.14 run pump selection, NPSH, intake design, piping,
+# installation, commissioning, O&M, troubleshooting, motors, starters,
+# panels, cables and transformer substation. Its equation 11.1 is specific
+# SPEED (n_q = 3.65 N Q^0.5 / H^0.75), not the P = Q.H/(367.eta) power
+# relation. So any citation reading "CPHEEO Chapter 13, Pumps and Pumping
+# Stations" is pointing at a DIFFERENT edition or a different manual, and
+# must not be attached to this one.
+# Finding 2 - The 0.25-0.50 kWh/m3 Specific-Energy Band IS Not IN Chapter 11.
+# The chapter carries no specific-energy section at all. The band circulates
+# via infralens.in/cpheeo/cpheeo-ws-13, a Third-Party Aggregator
+# whose own slug says "ws-13", i.e. it is indexing a LATER water-supply
+# manual where pumping is numbered 13. Not Cited Here. Nothing in this model
+# depends on it - it was only ever a cross-check on a figure this block
+# already derives from physics.
+# *** Finding 3, And IT IS A Real Correction: The Previous Comment Here Was
+# Wrong About 135 lpcd, And Wrong IN Both Directions. ***
+# It claimed 135 was "IS 1172's Reduced LIG/EWS value" and that using it for
+# a 250,000-person town "understates both the water and the energy". The
+# manual says otherwise. Section 2.2.8.3 "Recommendations", printed p.10,
+# VERBATIM:
+#   "In the Code of Basic Requirements of Water Supply, Drainage and
+#    Sanitation (IS: 1172-1983) as well as the National Building Code, a
+#    minimum of 135 lpcd has been recommended for all residences provided
+#    with full flushing system for excreta disposal. Though the Manual on
+#    Sewerage and Sewage Treatment recommends a supply of 150 lpcd wherever
+#    sewerage is existing/contemplated, with a view to conserve water, a
+#    minimum of 135 lpcd is now recommended."
+# and Table 2.1, "Recommended Per Capita Water Supply Levels For Designing
+# Schemes", printed p.11, Verbatim Rows:
+#   towns with piped supply but NO sewerage................  70 lpcd
+#   CITIES with piped supply, sewerage existing/contemplated  135 lpcd
+#   Metropolitan And Mega cities, sewerage exist/contemplated 150 lpcd
+# A 250,000-person new town with a planned sewerage system is row 2 exactly.
+# 150 is reserved for Metropolitan And Mega cities, which this is not. So
+# **135 is the correct design figure for this town, not a reduced one**, and
+# the old "understates the water" claim is withdrawn.
+# *** Finding 4, The One That Moves A Number. Table 2.1 note (ii), Verbatim:
+#   "Figures exclude 'Unaccounted for Water(UFW)' which should be limited
+#    to 15%"
+# The 135 lpcd is water Delivered TO The Consumer. The water actually
+# abstracted, treated and PUMPED is larger by the UFW allowance, and pumping
+# energy is paid on the pumped volume, not the delivered one. The model had
+# no UFW term anywhere (grepped: zero hits for UFW / unaccounted /
+# non-revenue / leakage across config and code), so it was paying to pump
+# only the water that arrives. Corrected below at CPHEEO's own 15% ceiling.
+#   delivered   135 lpcd x 365            = 49.275 m3/cap/yr
+#   produced    49.275 / (1 - 0.15)       = 57.971 m3/cap/yr
+#   groundwater 57.971 x 0.65 (DEM-5)     = 37.681 m3/cap/yr
+#   lift        37.681 x 0.1635 kWh/m3    =  6.16 kWh/cap/yr  (was 5.24)
+#   residual    unchanged at 19.76 (it is the DECLARED part; the lift is the
+#               derived part, so the correction lands on the lift alone)
+#   total       19.76 + 6.16              = 25.92 -> 25.9 kWh/cap/yr
+# EFFECT: +0.92 kWh/cap = +3.7% on the water term = **+0.04% on district
+# demand**. Immaterial to the headline, but it replaces an unsourced 25 with
+# a figure whose only remaining assumption is the isolated 19.76 residual.
+# Table 2.1 note (iii) also states, VERBATIM, that the figures "include
+# requirements of water for commercial, institutional and minor industries",
+# so the per-capita norm must NOT have a separate commercial water load added
+# on top - checked, the model adds none.
+# Size OF The Exposure: 25 kWh/cap x 250,000 = 6.25 GWh/yr, ~1.2% of district
+# demand. A live term in the public-services baseload, not documentation.
+# ---------------------------------------------------------------------------
+public_services:
+  # 25 -> 25.9 on CPHEEO Table 2.1 note (ii) says the 135 lpcd
+  # EXCLUDES unaccounted-for water, so the pumped volume is 135/0.85. Full
+  # arithmetic in the comment block above. +0.04% on district demand.
+  water_treatment_kwh_per_capita_per_year: 25.9
+  # --- STREET LIGHTING ---
+  # EXTENSION ( param audit, found by the sweep rather
+  # than by the audit itself). This header used to read "NOT YET split out /
+  # wired" and say "currently lumped into the night-heavy public_services
+  # baseload". Both Claims Are False and have been since the Task-5
+  # work. `street_lighting_kwh_per_capita_per_year` is read at
+  # energy/network.py:283, drives `grid_streetlight_kwh_yr` (8 reads), and
+  # enters demand as its OWN district term with its own night-heavy daypart
+  # shape and its own daylength modifier - explicitly NOT inside the
+  # public_services baseload. The IS 1944 per-road-class weights on top of it
+  # are live too.
+  # Fifth label of this class after (x2), and. Same lesson:
+  # a scaffold comment survives the scaffolding being replaced, because
+  # nothing forces anyone to delete it. India street
+  # lighting = 8,478 GWh in FY13, ~1.5% of national consumption (ESMAP/World Bank
+  # 2015); modern LED streetlight ~80 W. Urban per-capita ~10 kWh/cap/yr
+  # ( derived). A Solar streetlight is an Off-Grid unit (75 Wp panel + 12.8 V
+  # 30 Ah Lfp battery + 12 W Led, 3-day / 36 h autonomy; Anert/Hareda specs):
+  # it charges its OWN battery by DAY (sun, no lighting demand) and powers the lamp at
+  # NIGHT (demand, no sun) off that battery. So it neither draws from nor feeds the
+  # grid -> modelling effect is simply to REMOVE this night load from grid demand
+  # (a load removal, NOT a PV export). Activate via scenarios.*.allow_solar_streetlights
+  # + split this load out of public_services in energy/network.py -> re-dispatch.
+  #   https://www.esmap.org/sites/esmap.org/files/DocumentLibrary/India%20EE%20Street%20Lighting%20Implementation%20and%20Financing%20(P149482)%20June%2027%202015_Optimized.pdf
+  # *** The Per-Capita Figure IS Not IN The Esmap Document, SO IT
+  # IS Derived Here Instead, From A Tier 1 Anchor. ***
+  # CEA, via Lawrence Berkeley National Laboratory "Energy Savings Potential
+  # for Street Lighting in India", opened and quoted verbatim
+  #   "1% of all electricity consumption in India, equal to 6.7 TWh in FY2010-11"
+  #   https://energyanalysis.lbl.gov/publications/energy-savings-potential-street
+  # Census of India 2011: total population 1,210.9 M; urban population 377.1 M.
+  # DERIVATION (, declared, on inputs):
+  #   national per capita          6.7 TWh / 1,210.9 M = 5.53 kWh/cap/yr
+  #   URBAN per capita (conventional) 6.7 TWh / 377.1 M = 17.77 kWh/cap/yr
+  #   urban after a 50-60% LED saving              = 7.1 - 8.9 kWh/cap/yr
+  #   This Model Uses                              = 10.00 kWh/cap/yr
+  # So the value is Conservative: it sits Above what an all-Led new town would
+  # consume and BELOW urban conventional lighting, i.e. it overstates the load
+  # and makes the district work harder. Street lighting is 0.47% of district
+  # demand, so the exposure either way is small.
+  # *** Plausibility Bracket. The Esmap report cited beside
+  # this figure was obtained and parsed (176 pp, 435,647 characters) and
+  # contains ZERO occurrences of "per capita" - it is a programme-finance
+  # report, not a consumption norm. So this number had no source at all.
+  # A Bracket can be derived from a document that Was obtained: Pib,
+  # Street Lighting National Programme, May 2022, verbatim:
+  #   "EESL has installed over 1.27 crore LED street lights (as on
+  #    27.05.2022)... This has resulted in energy saving of more than 8587
+  #    Million Units (MUs) of electricity per annum, peak demand reduction of
+  #    over 1431 MW"
+  #   plus "a minimum energy saving (of typically 50%)"
+  #   https://static.pib.gov.in/WriteReadData/specificdocs/documents/2022/may/doc202253060301.pdf
+  # DERIVATION: at ~50% saving, post-retrofit consumption ~= the saving, so
+  # 12.7 m lights draw ~8,587 GWh/yr. Over India's ~1.4 bn population that is
+  # ~6.1 kWh/cap/yr For The Retrofitted Subset Only. Slnp is a partial
+  # programme, not the whole national stock, so the true per-capita figure is
+  # ABOVE 6.1 - which brackets this model's 10 from below.
+  # That national derivation implies ~676 kWh per light per year (~160 W at
+  # 4,200 h), which is too high for an LED fleet - so it establishes order of
+  # *** Better Derivation From A Real City Inventory,. ***
+  # The Esmap/Eesl report "Proven Delivery Models for Led Public Lighting"
+  # was finally obtained (esmap.org and the World Bank mirror both 403; the
+  # Internet Archive snapshot served it). Its Table 1, "Street lighting
+  # sources prior to and after LED installation" for VIZAG, verbatim:
+  #     40 watt TFL  -> 20 watt                       60,395
+  #     70 watt HPS  -> 40 watt                        4,084
+  #     150 watt HPS -> 70 watt                       18,392
+  #     250 watt HPS -> 120, 140, 150, and 160 watt    8,778
+  #     400 watt HPS -> 210 watt                         126
+  #     Total                                         91,775
+  #   "The replacement of Hps and Tfl lamps with Led lamps resulted in energy
+  #    savings of more than 50 percent"
+  # Quantity-Weighted Averages from that mix: 84.0 W conventional -> 42.6 W
+  # LED, i.e. 171-179 kWh per lamp per year at 4,000-4,200 annual hours. That
+  # per-lamp figure is physically sensible, unlike the national one above.
+  # PER CAPITA, using Vizag's own lamp count against its population:
+  #     GVMC 2011 census 1.73 m  -> 53.0 lamps/1,000 -> 9.5 kWh/cap/yr
+  #     ~2.0 m serviced          -> 45.9 lamps/1,000 -> 8.2 kWh/cap/yr
+  # SO A Real Indian City'S Actual Inventory Gives 8.2-9.5 kWh/cap/yr, and
+  # this model uses 10 - just above the range, i.e. mildly conservative for a
+  # town that will be built with LED from the outset.
+  # Status: still Tier 3 Derived, but now derived from a lamp inventory
+  # with a sane per-lamp cross-check, rather than declared.
+  # SIZE: 10 x 250,000 = 2.5 GWh/yr, 0.47% of district demand (527.60 GWh).
+  # *** National Cross-Check, And The Figure IS Declared IN
+  # The Thesis AS A Derivation Rather Than A Citation (Section 6.3.7). ***
+  # TWO independent literature searches confirm NO source states Indian
+  # street-lighting consumption PER CAPITA. What is published is the national
+  # total, and it brackets this value from below:
+  #   World Bank / ESMAP, "Republic of India - Energy-Efficient Urban Street
+  #   Lighting: Implementation and Financing Solutions" (AUS7490, 2015),
+  #   executive summary, VERBATIM: "In India, street lighting consumed about
+  #   8,478 GWh of electricity in FY13, about 1.5% of total national
+  #   electricity consumption." (multilateral technical report).
+  #   https://www.esmap.org/sites/esmap.org/files/DocumentLibrary/India%20EE%20Street%20Lighting%20Implementation%20and%20Financing%20Solutions%20Final.pdf
+  #   8,478 GWh over ~1.26 bn (FY13) = ~6.7 kWh/cap/yr NATIONAL.
+  # This Model Uses 10, i.e. ~1.5x the national average, And The Uplift IS
+  # DELIBERATE: a planned town lights its full road hierarchy to standard,
+  # while much of the national stock is unlit, under-lit or unmetered, so the
+  # national mean is a FLOOR not a norm. Do not "correct" 10 down to 6.7.
+  # CORROBORATION that the load is material, not that 10 is right:
+  #   LBNL, "Energy Savings Potential for Street Lighting in India" (2014),
+  #   abstract, VERBATIM: "the Surat Municipal Corporation, estimates that 17%
+  #   of the total annual municipal bill is due to street lighting"..
+  #   https://emp.lbl.gov/publications/energy-savings-potential-street
+  # What Would Settle IT: any municipal energy audit reporting street-lighting
+  # consumption against population.
+  street_lighting_kwh_per_capita_per_year: 10   # LIVE - read at energy/network.py:283
+  # --- Streetlights Per Road Class ---
+  # The flat model shares the lighting stock EQUALLY over road cells; real
+  # illuminance classes differ by road hierarchy, so the weights below
+  # redistribute WHICH road cells carry the (unchanged) per-capita total.
+  # enabled:false = byte-exact legacy equal-share arithmetic.
+  # *** IS 1944 Opened And Read From The Primary,. The Road-Class
+  # Mapping IS NO Longer This Model'S Own Inference. ***
+  # Previously this block said the mapping "rests on the IS 1944 lux grades"
+  # but that "the document does not assign lamp classes to ARTERIAL /
+  # Collector / Local roads". IT Does, in the road-type column of its own
+  # Table 1, and the standard was never opened to check.
+  # IS 1944 (Parts I and II) - 1970, Bureau of Indian Standards, "Code of
+  # Practice for Lighting of Public Thoroughfares".. Downloaded from
+  # law.resource.org and read by rendering the page image (the scan's text
+  # layer mangles the table).
+  # https://law.resource.org/pub/in/bis/S05/is.1944.1-2.1970.pdf
+  # Table 1 "Classification OF Lighting Installation And Levels OF
+  # ILLUMINATION", clauses 5.1 and 5.7, printed p.23. Columns (1)-(3)
+  # VERBATIM:
+  #   Group A1  Important traffic routes carrying fast traffic.......  30 lux
+  #   Group A2  Other main roads carrying mixed traffic, like main city
+  #             streets, ARTERIAL ROADS, throughways, etc.............  15 lux
+  #   Group B1  Secondary roads with considerable traffic like PRINCIPAL
+  #             Local Traffic Routes, shopping streets, etc...........   8 lux
+  #   Group B2  Secondary roads with light traffic...................    4 lux
+  # So the model's three classes map onto the standard's own road types:
+  #   arterial  -> A2 (the table names "arterial roads" explicitly)
+  #   collector -> B1 ("principal local traffic routes")
+  #   local     -> B2 ("secondary roads with light traffic")
+  # A1 is NOT used: it is the grade for grade-separated fast traffic, and this
+  # town's largest road is a 50 m sector arterial carrying mixed traffic.
+  # And The Standard Supplies The Defence For The Part That IS Judgement.
+  # Clause 3.2 VERBATIM: "The classification is one of lighting and not of
+  # roads, but is linked with traffic density. It is left to the local
+  # engineer to decide upon the category of the lighting for the given road."
+  # So assigning a lighting grade to a road class is a judgement the standard
+  # expressly delegates, not a gap in the evidence.
+  # *** The Weights Themselves Are Flatter Than A Strict lux x Width Reading,
+  # And That IS Stated Rather Than Hidden. *** Lamp-watts per 100 m of road
+  # scale as illuminance x lit width. Against the ROW widths this model
+  # already declares (layout/road_network.py: arterial 50 m, collector 25 m,
+  # local 20 m):
+  #     arterial  15 lux x 50 m = 750        collector  8 x 25 = 200
+  #     local      4 lux x 20 m =  80
+  #     normalised to collector = 3.75 / 1.00 / 0.40
+  # The weights below are 2.00 / 1.00 / 0.50. The ORDERING is the standard's;
+  # the MAGNITUDES are a deliberately flattened set, and they are
+  # RETAINED rather than sharpened for two reasons. A strict reading would
+  # concentrate lighting load onto a handful of arterial cells on the strength
+  # of a ROW width that includes footpath and verge, which are not lit to
+  # carriageway levels. And the weights move only WHERE an unchanged total
+  # sits, so sharpening them cannot change district demand, only its spatial
+  # The old comment claimed lamp-W runs "~2x a collector and ~4x a local
+  # lane". That reproduces 2.0 / 1.0 / 0.5 but does not follow from lux x
+  # width, which gives 3.75 / 1.0 / 0.40. The claimed derivation is therefore
+  # withdrawn and replaced by the statement above.
+  # The Wattage Ladder IS Separately Verified and is Not the
+  # source of these weights. Esmap/Eesl "Proven Delivery Models for Led Public
+  # Lighting", Table 1, Vizag, verbatim:
+  #     40 W Tfl -> 20 W | 70 W Hps -> 40 W | 150 W Hps -> 70 W
+  #     250 W HPS -> 120/140/150/160 W | 400 W HPS -> 210 W
+  # It confirms 250 / 150 / 70 W HPS are real standard lamp classes. It does
+  # NOT assign them to road classes; IS 1944 Table 1 above is what does.
+  street_lighting_class_weights:
+    enabled: true    # FLIPPED in the anneal-run-2 re-pin window
+                     # GO on the realism trio; per-surface tilt + floating-pond
+                     # density DROPPED as small-gain vs re-verification cost)
+    weights:
+      arterial: 2.0
+      collector: 1.0
+      local: 0.5
