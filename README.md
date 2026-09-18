@@ -111,9 +111,10 @@ Built in deck.gl and WebGL. It reads the model's output files and recomputes not
 The same results seen from one household. Pick a block and one of its homes: what it is drawing now, its roof, today's bill, hour by hour. Live at [urja-home.netlify.app](https://urja-home.netlify.app/).
 
 <div align="center">
-https://github.com/user-attachments/assets/c93626cf-1897-45b9-9de2-c44a901f0638
-<div >
 
+https://github.com/user-attachments/assets/c93626cf-1897-45b9-9de2-c44a901f0638
+
+</div>
 
 
 ---
