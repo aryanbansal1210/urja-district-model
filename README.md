@@ -115,7 +115,6 @@ https://github.com/user-attachments/assets/c93626cf-1897-45b9-9de2-c44a901f0638
 
 
 
-<p align="center"><img src="docs/media/app_home.png" width="300" alt="App home screen"></p>
 
 ---
 
